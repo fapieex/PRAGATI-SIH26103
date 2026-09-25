@@ -66,14 +66,17 @@ def load_data():
         .str.strip()
     )
 
-    df['cost_escalation_pct'] = np.where(
-        df['original_cost'] > 0,
-        (
-            df['revised_cost'] /
-            df['original_cost'] - 1
-        ) * 100,
-        np.nan
-    )
+   df['cost_escalation_pct'] = np.where(
+    (
+        (df['original_cost'] > 0) &
+        (df['revised_cost'] > 0)
+    ),
+    (
+        df['revised_cost'] /
+        df['original_cost'] - 1
+    ) * 100,
+    np.nan
+)
 
     df['expenditure_share_pct'] = np.where(
         df['revised_cost'] > 0,
