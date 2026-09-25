@@ -35,7 +35,6 @@ def load_data():
 
     df = df.rename(columns=rename)
 
-    # Force numeric columns to standard NumPy-compatible float64.
     numeric_columns = [
         'original_cost',
         'revised_cost',
@@ -44,17 +43,22 @@ def load_data():
     ]
 
     for c in numeric_columns:
-        df[c] = pd.to_numeric(df[c], errors='coerce').astype('float64')
+        df[c] = pd.to_numeric(
+            df[c],
+            errors='coerce'
+        ).astype('float64')
 
-    # Parse dates.
-    for c in ['original_date', 'revised_date', 'sanction_date']:
+    for c in [
+        'original_date',
+        'revised_date',
+        'sanction_date'
+    ]:
         df[c] = pd.to_datetime(
             df[c],
             dayfirst=True,
             errors='coerce'
         )
 
-    # Clean project codes.
     df['code'] = (
         df['code']
         .astype(str)
@@ -62,32 +66,38 @@ def load_data():
         .str.strip()
     )
 
-    # Derived indicators.
     df['cost_escalation_pct'] = np.where(
         df['original_cost'] > 0,
-        (df['revised_cost'] / df['original_cost'] - 1) * 100,
+        (
+            df['revised_cost'] /
+            df['original_cost'] - 1
+        ) * 100,
         np.nan
     )
 
     df['expenditure_share_pct'] = np.where(
         df['revised_cost'] > 0,
-        df['expenditure'] / df['revised_cost'] * 100,
+        (
+            df['expenditure'] /
+            df['revised_cost']
+        ) * 100,
         np.nan
     )
 
     df['progress_gap_pct'] = (
-        df['expenditure_share_pct'] - df['progress']
+        df['expenditure_share_pct'] -
+        df['progress']
     )
 
     df['schedule_delay_days'] = (
-        df['revised_date'] - df['original_date']
+        df['revised_date'] -
+        df['original_date']
     ).dt.days
 
     df['schedule_delay_months'] = (
         df['schedule_delay_days'] / 30.44
     )
 
-    # Make all derived numerical columns explicitly float64 too.
     derived_columns = [
         'cost_escalation_pct',
         'expenditure_share_pct',
@@ -117,27 +127,35 @@ def add_risk_score(d):
     x = d.copy()
 
     cost = (
-        pd.to_numeric(x['cost_escalation_pct'], errors='coerce')
+        pd.to_numeric(
+            x['cost_escalation_pct'],
+            errors='coerce'
+        )
         .clip(lower=0, upper=100)
         .fillna(0)
         .astype(float)
     )
 
     delay = (
-        pd.to_numeric(x['schedule_delay_months'], errors='coerce')
+        pd.to_numeric(
+            x['schedule_delay_months'],
+            errors='coerce'
+        )
         .clip(lower=0, upper=60)
         .fillna(0)
         .astype(float)
     )
 
     gap = (
-        pd.to_numeric(x['progress_gap_pct'], errors='coerce')
+        pd.to_numeric(
+            x['progress_gap_pct'],
+            errors='coerce'
+        )
         .clip(lower=0, upper=50)
         .fillna(0)
         .astype(float)
     )
 
-    # Scale to 0-100 components.
     cost_s = (cost / 100) * 100
     delay_s = (delay / 60) * 100
     gap_s = (gap / 50) * 100
@@ -191,12 +209,34 @@ st.markdown(
         color: #657385;
     }
 
-    .badge {
-        display: inline-block;
-        padding: .28rem .62rem;
-        border-radius: 999px;
+    .attention-card {
+        padding: 1rem 1.2rem;
+        border: 1px solid #e4e8ee;
+        border-radius: 14px;
+        background: white;
+        min-height: 145px;
+    }
+
+    .attention-label {
+        font-size: .76rem;
         font-weight: 700;
-        font-size: .78rem;
+        color: #687585;
+        letter-spacing: .06em;
+        margin-bottom: .45rem;
+    }
+
+    .attention-badge {
+        display: inline-block;
+        padding: .35rem .75rem;
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: .9rem;
+        margin-bottom: .5rem;
+    }
+
+    .attention-description {
+        font-size: .82rem;
+        color: #657385;
     }
     </style>
     ''',
@@ -223,8 +263,8 @@ st.markdown(
 
 st.info(
     'Prototype mode: this build uses the supplied PAIMANA project-level '
-    'snapshot. The risk score is a transparent screening proxy, not a '
-    'trained future-outcome prediction. Longitudinal prediction activates '
+    'snapshot. The attention score is a transparent screening proxy, not '
+    'a trained future-outcome prediction. Longitudinal prediction activates '
     'when multiple reporting snapshots are available.'
 )
 
@@ -237,12 +277,22 @@ st.sidebar.header('Project Filters')
 
 sector_options = (
     ['All'] +
-    sorted(df['sector'].dropna().unique().tolist())
+    sorted(
+        df['sector']
+        .dropna()
+        .unique()
+        .tolist()
+    )
 )
 
 ministry_options = (
     ['All'] +
-    sorted(df['ministry'].dropna().unique().tolist())
+    sorted(
+        df['ministry']
+        .dropna()
+        .unique()
+        .tolist()
+    )
 )
 
 sector = st.sidebar.selectbox(
@@ -372,17 +422,27 @@ if page == 'Overview':
 
         top = (
             filtered
-            .sort_values('risk_score', ascending=False)[cols]
+            .sort_values(
+                'risk_score',
+                ascending=False
+            )[cols]
             .head(8)
             .copy()
         )
 
-        top['risk_score'] = top['risk_score'].round(1)
-        top['cost_escalation_pct'] = (
-            top['cost_escalation_pct'].round(1)
+        top['risk_score'] = (
+            top['risk_score']
+            .round(1)
         )
+
+        top['cost_escalation_pct'] = (
+            top['cost_escalation_pct']
+            .round(1)
+        )
+
         top['schedule_delay_months'] = (
-            top['schedule_delay_months'].round(1)
+            top['schedule_delay_months']
+            .round(1)
         )
 
         st.dataframe(
@@ -402,7 +462,10 @@ elif page == 'Project Intelligence':
 
     choices = (
         filtered
-        .sort_values('risk_score', ascending=False)
+        .sort_values(
+            'risk_score',
+            ascending=False
+        )
     )
 
     if len(choices) == 0:
@@ -421,7 +484,9 @@ elif page == 'Project Intelligence':
                 f"{choices.loc[choices.code == x, 'name'].iloc[0][:85]}"
         )
 
-        p = df[df.code == selected_code].iloc[0]
+        p = df[
+            df.code == selected_code
+        ].iloc[0]
 
         st.markdown(
             f'### {p["name"]}'
@@ -455,48 +520,179 @@ elif page == 'Project Intelligence':
             f'{p.schedule_delay_months:+.1f} mo'
         )
 
+        # -------------------------------------------------
+        # NEW ATTENTION UI
+        # -------------------------------------------------
+
         st.markdown(
             '#### PRAGATI attention signal'
         )
 
         level = str(p.risk_level)
 
+        if level == 'HIGH':
+            badge_text = '🔴 HIGH ATTENTION'
+        elif level == 'MEDIUM':
+            badge_text = '🟠 MEDIUM ATTENTION'
+        else:
+            badge_text = '🟢 LOW ATTENTION'
+
+        left_attention, right_attention = st.columns(
+            [1.4, 1]
+        )
+
+        with left_attention:
+
+            st.markdown(
+                f'''
+                <div class="attention-card">
+                    <div class="attention-label">
+                        CURRENT ATTENTION LEVEL
+                    </div>
+                    <div class="attention-badge">
+                        {badge_text}
+                    </div>
+                    <div class="attention-description">
+                        Based on the current project snapshot
+                        and prototype screening indicators.
+                    </div>
+                </div>
+                ''',
+                unsafe_allow_html=True
+            )
+
+        with right_attention:
+
+            st.metric(
+                'Attention score',
+                f'{p.risk_score:.1f} / 100',
+                help=(
+                    'This is a prototype attention score, '
+                    'NOT a probability of project failure.'
+                )
+            )
+
         st.progress(
-            int(p.risk_score),
+            int(
+                round(
+                    max(
+                        0,
+                        min(
+                            100,
+                            float(p.risk_score)
+                        )
+                    )
+                )
+            ),
             text=(
-                f'{level} · '
-                f'prototype attention score '
+                f'Prototype attention score: '
                 f'{p.risk_score:.1f}/100'
             )
         )
 
+        st.caption(
+            '⚠️ This is an attention score, not a probability '
+            'of project failure. A trained and calibrated ML model '
+            'using longitudinal project data would generate the '
+            'final predictive risk probability.'
+        )
+
+        # -------------------------------------------------
+        # WHY IS THIS PROJECT RECEIVING ATTENTION?
+        # -------------------------------------------------
+
         st.markdown(
-            '#### Why is this project being flagged?'
+            '#### Why is this project receiving attention?'
+        )
+
+        cost_contribution = min(
+            max(
+                (float(p.cost_escalation_pct) / 100) * 40
+                if pd.notna(p.cost_escalation_pct)
+                else 0,
+                0
+            ),
+            40
+        )
+
+        schedule_contribution = min(
+            max(
+                (float(p.schedule_delay_months) / 60) * 35
+                if pd.notna(p.schedule_delay_months)
+                else 0,
+                0
+            ),
+            35
+        )
+
+        gap_contribution = min(
+            max(
+                (float(p.progress_gap_pct) / 50) * 25
+                if pd.notna(p.progress_gap_pct)
+                else 0,
+                0
+            ),
+            25
+        )
+
+        contribution_data = pd.DataFrame({
+            'Indicator': [
+                'Cost escalation',
+                'Schedule revision',
+                'Progress–expenditure divergence'
+            ],
+            'Attention contribution': [
+                cost_contribution,
+                schedule_contribution,
+                gap_contribution
+            ]
+        })
+
+        contribution_data[
+            'Attention contribution'
+        ] = contribution_data[
+            'Attention contribution'
+        ].round(1)
+
+        st.dataframe(
+            contribution_data,
+            use_container_width=True,
+            hide_index=True
         )
 
         reasons = []
 
-        if p.cost_escalation_pct > 10:
+        if (
+            pd.notna(p.cost_escalation_pct)
+            and p.cost_escalation_pct > 10
+        ):
             reasons.append(
                 f'Cost escalation is '
                 f'{p.cost_escalation_pct:.1f}% '
                 f'above the original approved cost.'
             )
 
-        if p.schedule_delay_months > 3:
+        if (
+            pd.notna(p.schedule_delay_months)
+            and p.schedule_delay_months > 3
+        ):
             reasons.append(
                 f'Revised commissioning is '
                 f'{p.schedule_delay_months:.1f} months '
                 f'after the original date.'
             )
 
-        if p.progress_gap_pct > 10:
+        if (
+            pd.notna(p.progress_gap_pct)
+            and p.progress_gap_pct > 10
+        ):
             reasons.append(
                 f'Expenditure share '
                 f'({p.expenditure_share_pct:.1f}%) '
                 f'is ahead of physical progress '
                 f'({p.progress:.1f}%) by '
-                f'{p.progress_gap_pct:.1f} percentage points.'
+                f'{p.progress_gap_pct:.1f} '
+                f'percentage points.'
             )
 
         if not reasons:
@@ -509,11 +705,16 @@ elif page == 'Project Intelligence':
             st.write('• ' + r)
 
         st.caption(
-            'Interpretation: these are risk indicators, '
-            'not causal findings. A trained longitudinal '
-            'model would require historical reporting snapshots '
-            'and future-outcome labels.'
+            'These indicators describe why the prototype '
+            'assigns attention; they are not causal findings. '
+            'The final system would replace this transparent '
+            'screening score with trained longitudinal ML models '
+            'and calibrated risk estimates.'
         )
+
+        # -------------------------------------------------
+        # PROJECT FACTS
+        # -------------------------------------------------
 
         st.markdown(
             '#### Project facts'
@@ -573,13 +774,12 @@ elif page == 'Historical Memory':
         'Similarity is contextual, not proof of a common outcome.'
     )
 
-    # IMPORTANT:
-    # The Historical Memory page uses the filtered list for selection.
-    # If filters result in zero projects, don't attempt iloc[0].
-
     historical_choices = (
         filtered
-        .sort_values('risk_score', ascending=False)
+        .sort_values(
+            'risk_score',
+            ascending=False
+        )
     )
 
     if len(historical_choices) == 0:
@@ -597,14 +797,14 @@ elif page == 'Historical Memory':
             key='hist'
         )
 
-        p = df[df.code == selected_code].iloc[0]
+        p = df[
+            df.code == selected_code
+        ].iloc[0]
 
-        # Candidate projects exclude the selected project.
         cand = df[
             df['code'] != selected_code
         ].copy()
 
-        # Prefer projects from the same sector.
         sector_projects = cand[
             cand['sector'] == p['sector']
         ].copy()
@@ -612,7 +812,6 @@ elif page == 'Historical Memory':
         if len(sector_projects) >= 5:
             cand = sector_projects
 
-        # Features used for analogue comparison.
         features = [
             'progress',
             'original_cost',
@@ -620,24 +819,21 @@ elif page == 'Historical Memory':
             'cost_escalation_pct'
         ]
 
-        # -------------------------------------------------
-        # FIX:
-        # Explicitly convert all similarity features to
-        # regular NumPy float64 arrays before calculations.
-        #
-        # This avoids pandas nullable/extension dtype
-        # interaction with NumPy ufuncs in newer pandas.
-        # -------------------------------------------------
-
         base = (
             df[features]
-            .apply(pd.to_numeric, errors='coerce')
+            .apply(
+                pd.to_numeric,
+                errors='coerce'
+            )
             .astype('float64')
         )
 
         candidate_features = (
             cand[features]
-            .apply(pd.to_numeric, errors='coerce')
+            .apply(
+                pd.to_numeric,
+                errors='coerce'
+            )
             .astype('float64')
         )
 
@@ -649,9 +845,9 @@ elif page == 'Historical Memory':
             .astype('float64')
         )
 
-        # Robust scaling using median absolute deviation.
         med = (
-            base.median()
+            base
+            .median()
             .astype('float64')
         )
 
@@ -662,37 +858,47 @@ elif page == 'Historical Memory':
             .astype('float64')
         )
 
-        # Avoid division by zero.
-        mad = mad.replace(0, 1.0)
+        mad = mad.replace(
+            0,
+            1.0
+        )
 
-        # Convert to plain NumPy arrays.
         candidate_values = (
             candidate_features
-            .to_numpy(dtype=np.float64)
+            .to_numpy(
+                dtype=np.float64
+            )
         )
 
         target_values = (
             target_features
-            .to_numpy(dtype=np.float64)
+            .to_numpy(
+                dtype=np.float64
+            )
         )
 
         med_values = (
             med
-            .to_numpy(dtype=np.float64)
+            .to_numpy(
+                dtype=np.float64
+            )
         )
 
         mad_values = (
             mad
-            .to_numpy(dtype=np.float64)
+            .to_numpy(
+                dtype=np.float64
+            )
         )
 
-        # Standardized distance.
         z = (
-            (candidate_values - target_values)
+            (
+                candidate_values -
+                target_values
+            )
             / mad_values
         )
 
-        # Replace NaN / +/- infinity safely.
         z = np.nan_to_num(
             z,
             nan=0.0,
@@ -700,7 +906,6 @@ elif page == 'Historical Memory':
             neginf=0.0
         )
 
-        # Euclidean distance.
         distances = np.sqrt(
             np.sum(
                 np.square(z),
@@ -710,10 +915,11 @@ elif page == 'Historical Memory':
 
         cand['similarity_distance'] = distances
 
-        # Select closest analogues.
         analogues = (
             cand
-            .sort_values('similarity_distance')
+            .sort_values(
+                'similarity_distance'
+            )
             .head(5)
             .copy()
         )
@@ -731,15 +937,18 @@ elif page == 'Historical Memory':
         ].copy()
 
         show['progress'] = (
-            show['progress'].round(1)
+            show['progress']
+            .round(1)
         )
 
         show['cost_escalation_pct'] = (
-            show['cost_escalation_pct'].round(1)
+            show['cost_escalation_pct']
+            .round(1)
         )
 
         show['expenditure_share_pct'] = (
-            show['expenditure_share_pct'].round(1)
+            show['expenditure_share_pct']
+            .round(1)
         )
 
         show.columns = [
@@ -759,6 +968,7 @@ elif page == 'Historical Memory':
         )
 
 
+# =========================================================
 # METHODOLOGY
 # =========================================================
 
@@ -799,4 +1009,3 @@ st.caption(
     'project report · For demonstration and decision-support '
     'concept validation'
 )
-
