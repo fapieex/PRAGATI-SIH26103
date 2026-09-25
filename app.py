@@ -67,7 +67,6 @@ def load_data():
     )
 
    df['cost_escalation_pct'] = np.where(
-    (
         (df['original_cost'] > 0) &
         (df['revised_cost'] > 0)
     ),
