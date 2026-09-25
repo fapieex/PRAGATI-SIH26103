@@ -126,46 +126,79 @@ df = load_data()
 def add_risk_score(d):
     x = d.copy()
 
-    cost = (
-        pd.to_numeric(
-            x['cost_escalation_pct'],
-            errors='coerce'
-        )
-        .clip(lower=0, upper=100)
-        .fillna(0)
-        .astype(float)
+    # Convert indicators to numeric
+    cost = pd.to_numeric(
+        x['cost_escalation_pct'],
+        errors='coerce'
     )
 
-    delay = (
-        pd.to_numeric(
-            x['schedule_delay_months'],
-            errors='coerce'
-        )
-        .clip(lower=0, upper=60)
-        .fillna(0)
-        .astype(float)
+    delay = pd.to_numeric(
+        x['schedule_delay_months'],
+        errors='coerce'
     )
 
-    gap = (
-        pd.to_numeric(
-            x['progress_gap_pct'],
-            errors='coerce'
-        )
-        .clip(lower=0, upper=50)
-        .fillna(0)
-        .astype(float)
+    gap = pd.to_numeric(
+        x['progress_gap_pct'],
+        errors='coerce'
     )
 
+    # Treat impossible / unusable values as unavailable
+    # Negative cost escalation is not treated as a risk signal.
+    cost = cost.where(cost >= 0)
+    delay = delay.where(delay >= 0)
+    gap = gap.where(gap >= 0)
+
+    # Cap valid values
+    cost = cost.clip(lower=0, upper=100)
+    delay = delay.clip(lower=0, upper=60)
+    gap = gap.clip(lower=0, upper=50)
+
+    # Convert each valid indicator to a 0–100 contribution
     cost_s = (cost / 100) * 100
     delay_s = (delay / 60) * 100
     gap_s = (gap / 50) * 100
 
-    x['risk_score'] = (
-        0.40 * cost_s +
-        0.35 * delay_s +
-        0.25 * gap_s
-    ).clip(0, 100).astype(float)
+    # Original weights
+    weights = pd.DataFrame({
+        'cost': 0.40,
+        'delay': 0.35,
+        'gap': 0.25
+    }, index=x.index)
 
+    # Which indicators are actually available?
+    valid = pd.DataFrame({
+        'cost': cost.notna(),
+        'delay': delay.notna(),
+        'gap': gap.notna()
+    }, index=x.index)
+
+    # Weighted contributions
+    weighted = pd.DataFrame({
+        'cost': cost_s * weights['cost'],
+        'delay': delay_s * weights['delay'],
+        'gap': gap_s * weights['gap']
+    }, index=x.index)
+
+    # Remove unavailable indicators from both numerator and denominator
+    weighted = weighted.where(valid, 0)
+
+    available_weight = (
+        weights.where(valid, 0)
+        .sum(axis=1)
+    )
+
+    total_score = weighted.sum(axis=1)
+
+    # Renormalize based on available indicators
+    x['risk_score'] = np.where(
+        available_weight > 0,
+        (total_score / available_weight).clip(0, 100),
+        np.nan
+    )
+
+    x['risk_score'] = x['risk_score'].astype(float)
+
+    # Risk level
     x['risk_level'] = pd.cut(
         x['risk_score'],
         bins=[-0.01, 30, 60, 100],
