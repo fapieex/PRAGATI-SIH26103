@@ -759,7 +759,6 @@ elif page == 'Historical Memory':
         )
 
 
-# =========================================================
 # METHODOLOGY
 # =========================================================
 
@@ -800,4 +799,4 @@ st.caption(
     'project report · For demonstration and decision-support '
     'concept validation'
 )
-```
+
