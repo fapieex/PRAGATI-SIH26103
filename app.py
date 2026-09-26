@@ -6,7 +6,7 @@ from datetime import datetime
 
 st.set_page_config(
     page_title='PRAGATI | Infrastructure Intelligence',
-    page_icon='📊',
+    page_icon='IN',
     layout='wide'
 )
 
