@@ -2,92 +2,20 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from pathlib import Path
-
-# =========================================================
-# PAGE CONFIG
-# =========================================================
+from datetime import datetime
 
 st.set_page_config(
-    page_title='PRAGATI | Infrastructure Project Monitoring',
-    page_icon='🇮🇳',
-    layout='wide',
-    initial_sidebar_state='expanded'
+    page_title='PRAGATI | Infrastructure Intelligence',
+    page_icon='📊',
+    layout='wide'
 )
 
 DATA_FILE = Path(__file__).parent / 'Projects_Report.xlsx'
 
 
-# =========================================================
-# THEME
-# =========================================================
-
-if 'theme' not in st.session_state:
-    st.session_state.theme = 'Light'
-
-st.sidebar.markdown('### Display')
-
-theme = st.sidebar.radio(
-    'Theme',
-    ['Light', 'Dark'],
-    index=0 if st.session_state.theme == 'Light' else 1,
-    horizontal=True,
-    label_visibility='collapsed'
-)
-
-st.session_state.theme = theme
-
-dark_mode = theme == 'Dark'
-
-
-# =========================================================
-# THEME COLOURS
-# =========================================================
-
-if dark_mode:
-
-    BG = '#101820'
-    SURFACE = '#17232d'
-    SURFACE_2 = '#1d2b36'
-    TEXT = '#edf2f7'
-    MUTED = '#aab7c4'
-    BORDER = '#344451'
-    NAVY = '#6ea8d8'
-    NAVY_DARK = '#17395f'
-    TABLE_BG = '#17232d'
-    TABLE_TEXT = '#edf2f7'
-    SIDEBAR = '#0d151c'
-    NOTE_BG = '#16232e'
-    NOTE_BORDER = '#40515f'
-
-else:
-
-    BG = '#f4f6f8'
-    SURFACE = '#ffffff'
-    SURFACE_2 = '#f7f9fb'
-    TEXT = '#17202a'
-    MUTED = '#607080'
-    BORDER = '#d5dce3'
-    NAVY = '#17395f'
-    NAVY_DARK = '#17395f'
-    TABLE_BG = '#ffffff'
-    TABLE_TEXT = '#17202a'
-    SIDEBAR = '#eef1f5'
-    NOTE_BG = '#f7f9fb'
-    NOTE_BORDER = '#cbd5df'
-
-
-# =========================================================
-# DATA
-# =========================================================
-
 @st.cache_data
 def load_data():
-
-    df = pd.read_excel(
-        DATA_FILE,
-        skiprows=2
-    )
-
+    df = pd.read_excel(DATA_FILE, skiprows=2)
     df = df.dropna(how='all').copy()
 
     rename = {
@@ -138,10 +66,6 @@ def load_data():
         .str.strip()
     )
 
-    # -----------------------------------------------------
-    # COST ESCALATION
-    # -----------------------------------------------------
-
     df['cost_escalation_pct'] = np.where(
         (df['original_cost'] > 0) &
         (df['revised_cost'] > 0),
@@ -152,10 +76,6 @@ def load_data():
         np.nan
     )
 
-    # -----------------------------------------------------
-    # EXPENDITURE SHARE
-    # -----------------------------------------------------
-
     df['expenditure_share_pct'] = np.where(
         df['revised_cost'] > 0,
         (
@@ -165,18 +85,10 @@ def load_data():
         np.nan
     )
 
-    # -----------------------------------------------------
-    # PROGRESS / EXPENDITURE DIVERGENCE
-    # -----------------------------------------------------
-
     df['progress_gap_pct'] = (
         df['expenditure_share_pct'] -
         df['progress']
     )
-
-    # -----------------------------------------------------
-    # SCHEDULE REVISION
-    # -----------------------------------------------------
 
     df['schedule_delay_days'] = (
         df['revised_date'] -
@@ -184,8 +96,7 @@ def load_data():
     ).dt.days
 
     df['schedule_delay_months'] = (
-        df['schedule_delay_days'] /
-        30.44
+        df['schedule_delay_days'] / 30.44
     )
 
     derived_columns = [
@@ -208,14 +119,15 @@ def load_data():
 df = load_data()
 
 
-# =========================================================
-# PROTOTYPE ATTENTION SCORE
-# =========================================================
+# ---------------------------------------------------------
+# Transparent prototype attention score
+# NOT a trained future-outcome prediction model.
+# ---------------------------------------------------------
 
 def add_risk_score(d):
-
     x = d.copy()
 
+    # Convert indicators to numeric
     cost = pd.to_numeric(
         x['cost_escalation_pct'],
         errors='coerce'
@@ -231,89 +143,67 @@ def add_risk_score(d):
         errors='coerce'
     )
 
+    # Treat impossible / unusable values as unavailable
+    # Negative cost escalation is not treated as a risk signal.
     cost = cost.where(cost >= 0)
     delay = delay.where(delay >= 0)
     gap = gap.where(gap >= 0)
 
-    cost = cost.clip(
-        lower=0,
-        upper=100
-    )
+    # Cap valid values
+    cost = cost.clip(lower=0, upper=100)
+    delay = delay.clip(lower=0, upper=60)
+    gap = gap.clip(lower=0, upper=50)
 
-    delay = delay.clip(
-        lower=0,
-        upper=60
-    )
-
-    gap = gap.clip(
-        lower=0,
-        upper=50
-    )
-
-    cost_s = cost
+    # Convert each valid indicator to a 0–100 contribution
+    cost_s = (cost / 100) * 100
     delay_s = (delay / 60) * 100
     gap_s = (gap / 50) * 100
 
+    # Original weights
     weights = pd.DataFrame({
         'cost': 0.40,
         'delay': 0.35,
         'gap': 0.25
     }, index=x.index)
 
+    # Which indicators are actually available?
     valid = pd.DataFrame({
         'cost': cost.notna(),
         'delay': delay.notna(),
         'gap': gap.notna()
     }, index=x.index)
 
+    # Weighted contributions
     weighted = pd.DataFrame({
         'cost': cost_s * weights['cost'],
         'delay': delay_s * weights['delay'],
         'gap': gap_s * weights['gap']
     }, index=x.index)
 
-    weighted = weighted.where(
-        valid,
-        0
-    )
+    # Remove unavailable indicators from both numerator and denominator
+    weighted = weighted.where(valid, 0)
 
     available_weight = (
-        weights
-        .where(valid, 0)
+        weights.where(valid, 0)
         .sum(axis=1)
     )
 
-    total_score = weighted.sum(
-        axis=1
-    )
+    total_score = weighted.sum(axis=1)
 
+    # Renormalize based on available indicators
     x['risk_score'] = np.where(
         available_weight > 0,
-        (
-            total_score /
-            available_weight
-        ).clip(0, 100),
+        (total_score / available_weight).clip(0, 100),
         np.nan
     )
 
-    x['risk_score'] = (
-        x['risk_score']
-        .astype(float)
-    )
+    x['risk_score'] = x['risk_score'].astype(float)
 
+    # Risk level
     x['risk_level'] = pd.cut(
         x['risk_score'],
-        bins=[
-            -0.01,
-            30,
-            60,
-            100
-        ],
-        labels=[
-            'LOW',
-            'MEDIUM',
-            'HIGH'
-        ]
+        bins=[-0.01, 30, 60, 100],
+        labels=['LOW', 'MEDIUM', 'HIGH']
     )
 
     return x
@@ -322,474 +212,102 @@ def add_risk_score(d):
 df = add_risk_score(df)
 
 
-# =========================================================
-# FORMATTING HELPERS
-# =========================================================
-
-def fmt_pct(value, decimals=1):
-
-    if pd.isna(value):
-        return 'Not available'
-
-    return f'{value:+.{decimals}f}%'
-
-
-def fmt_currency(value):
-
-    if pd.isna(value):
-        return 'Not available'
-
-    return f'₹{value:,.2f} crore'
-
-
-# =========================================================
-# CUSTOM CSS
-# =========================================================
+# ---------------------------------------------------------
+# Styling
+# ---------------------------------------------------------
 
 st.markdown(
-    f'''
+    '''
     <style>
-
-    /* ================================================
-       GLOBAL
-    ================================================ */
-
-    .stApp {{
-        background: {BG};
-        color: {TEXT};
-    }}
-
-    .block-container {{
-        max-width: 1500px;
-        padding-top: 0.65rem;
-        padding-bottom: 2rem;
-    }}
-
-    h1, h2, h3, h4 {{
-        color: {TEXT} !important;
-    }}
-
-    p, span, label {{
-        color: {TEXT};
-    }}
-
-    .stCaption {{
-        color: {MUTED} !important;
-    }}
-
-
-    /* ================================================
-       TRICOLOUR STRIP
-    ================================================ */
-
-    .tricolor-main {{
-        height: 7px;
-        width: 100%;
-        margin-bottom: 0.75rem;
-
-        background:
-        linear-gradient(
-            to right,
-            #ff9933 0%,
-            #ff9933 33.33%,
-            #ffffff 33.33%,
-            #ffffff 66.66%,
-            #138808 66.66%,
-            #138808 100%
-        );
-
-        border: 1px solid rgba(100,100,100,0.25);
-    }}
-
-
-    /* ================================================
-       SECONDARY TRICOLOUR ACCENT
-    ================================================ */
-
-    .tricolor-mini {{
-        height: 3px;
-        width: 105px;
-        margin-top: 0.35rem;
-
-        background:
-        linear-gradient(
-            to right,
-            #ff9933 0%,
-            #ff9933 33.33%,
-            #ffffff 33.33%,
-            #ffffff 66.66%,
-            #138808 66.66%,
-            #138808 100%
-        );
-    }}
-
-
-    /* ================================================
-       GOVERNMENT HEADER
-    ================================================ */
-
-    .gov-header {{
-        background: {SURFACE};
-        border: 1px solid {BORDER};
-        border-top: 4px solid {NAVY};
-        padding: 0.85rem 1.15rem;
-    }}
-
-    .gov-small {{
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.07em;
-        font-weight: 700;
-        color: {MUTED};
-    }}
-
-    .gov-ministry {{
-        font-size: 1.04rem;
-        font-weight: 750;
-        margin-top: 0.12rem;
-        color: {TEXT};
-    }}
-
-    .gov-division {{
-        font-size: 0.79rem;
-        margin-top: 0.12rem;
-        color: {MUTED};
-    }}
-
-
-    /* ================================================
-       PRAGATI HEADER
-    ================================================ */
-
-    .brand {{
-        background: {SURFACE};
-        border: 1px solid {BORDER};
-        border-top: none;
-        padding: 0.85rem 1.15rem;
-        margin-bottom: 0.75rem;
-    }}
-
-    .brand-row {{
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }}
-
-    .brand-name {{
-        color: {NAVY};
-        font-size: 1.85rem;
-        font-weight: 850;
-        letter-spacing: 0.06em;
-    }}
-
-    .brand-description {{
-        color: {MUTED};
-        font-size: 0.78rem;
-        margin-top: 0.05rem;
-    }}
-
-    .prototype {{
-        display: inline-block;
-        border: 1px solid {BORDER};
-        background: {SURFACE_2};
-        color: {MUTED};
-        padding: 0.28rem 0.55rem;
-        font-size: 0.65rem;
-        font-weight: 750;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-    }}
-
-
-    /* ================================================
-       SYSTEM NOTICE
-    ================================================ */
-
-    .system-note {{
-        background: {NOTE_BG};
-        border: 1px solid {NOTE_BORDER};
-        border-left: 4px solid {NAVY};
-        padding: 0.65rem 0.85rem;
-        margin: 0.75rem 0 1rem 0;
-        font-size: 0.76rem;
-        color: {MUTED};
-    }}
-
-
-    /* ================================================
-       SECTION HEADER
-    ================================================ */
-
-    .section-title {{
-        display: flex;
-        align-items: center;
-        gap: 0.45rem;
-        font-size: 1.02rem;
-        font-weight: 750;
-        color: {TEXT};
-        border-bottom: 1px solid {BORDER};
-        padding-bottom: 0.45rem;
-        margin-top: 1.1rem;
-        margin-bottom: 0.8rem;
-    }}
-
-    .section-mark {{
-        width: 5px;
-        height: 22px;
-
-        background:
-        linear-gradient(
-            to bottom,
-            #ff9933 0%,
-            #ff9933 33.33%,
-            #ffffff 33.33%,
-            #ffffff 66.66%,
-            #138808 66.66%,
-            #138808 100%
-        );
-
-        border: 1px solid rgba(100,100,100,0.25);
-    }}
-
-
-    /* ================================================
-       METRICS
-    ================================================ */
-
-    div[data-testid="stMetric"] {{
-        background: {SURFACE};
-        border: 1px solid {BORDER};
-        border-radius: 2px;
-        padding: 0.65rem 0.8rem;
-        min-height: 90px;
-    }}
-
-    div[data-testid="stMetricLabel"] {{
-        color: {MUTED} !important;
-        font-size: 0.72rem !important;
-        font-weight: 650 !important;
-    }}
-
-    div[data-testid="stMetricValue"] {{
-        color: {NAVY} !important;
-        font-size: 1.38rem !important;
-        font-weight: 750 !important;
-    }}
-
-
-    /* ================================================
-       ATTENTION PANELS
-    ================================================ */
-
-    .attention {{
-        background: {SURFACE};
-        border: 1px solid {BORDER};
-        border-left: 5px solid {NAVY};
-        padding: 0.95rem;
-        min-height: 115px;
-    }}
-
-    .attention.high {{
-        border-left-color: #c62828;
-    }}
-
-    .attention.medium {{
-        border-left-color: #c77c00;
-    }}
-
-    .attention.low {{
-        border-left-color: #17804c;
-    }}
-
-    .attention-title {{
-        color: {MUTED};
-        font-size: 0.68rem;
-        font-weight: 750;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }}
-
-    .attention-value {{
-        color: {TEXT};
-        font-size: 1.08rem;
+    .main-title {
+        font-size: 2.15rem;
         font-weight: 800;
-        margin-top: 0.35rem;
-        margin-bottom: 0.35rem;
-    }}
+        margin-bottom: 0.1rem;
+    }
 
-    .attention-text {{
-        color: {MUTED};
-        font-size: 0.75rem;
-    }}
+    .sub-title {
+        font-size: 1.02rem;
+        color: #536273;
+        margin-bottom: 1.2rem;
+    }
 
+    .card {
+        padding: 1rem 1.1rem;
+        border: 1px solid #e4e8ee;
+        border-radius: 14px;
+        background: white;
+    }
 
-    /* ================================================
-       NOTES
-    ================================================ */
+    .small {
+        font-size: .82rem;
+        color: #657385;
+    }
 
-    .note {{
-        background: {SURFACE_2};
-        border: 1px solid {BORDER};
-        padding: 0.7rem 0.85rem;
-        color: {MUTED};
-        font-size: 0.74rem;
-    }}
+    .attention-card {
+        padding: 1rem 1.2rem;
+        border: 1px solid #e4e8ee;
+        border-radius: 14px;
+        background: white;
+        min-height: 145px;
+    }
 
+    .attention-label {
+        font-size: .76rem;
+        font-weight: 700;
+        color: #687585;
+        letter-spacing: .06em;
+        margin-bottom: .45rem;
+    }
 
-    /* ================================================
-       SIDEBAR
-    ================================================ */
+    .attention-badge {
+        display: inline-block;
+        padding: .35rem .75rem;
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: .9rem;
+        margin-bottom: .5rem;
+    }
 
-    section[data-testid="stSidebar"] {{
-        background: {SIDEBAR};
-        border-right: 1px solid {BORDER};
-    }}
-
-    section[data-testid="stSidebar"] h3 {{
-        color: {NAVY} !important;
-    }}
-
-
-    /* ================================================
-       RADIO NAVIGATION
-    ================================================ */
-
-    div[role="radiogroup"] {{
-        background: {NAVY_DARK};
-        border: 1px solid {NAVY_DARK};
-        padding: 0.25rem 0.35rem;
-    }}
-
-    div[role="radiogroup"] label {{
-        color: #ffffff !important;
-        font-size: 0.78rem !important;
-        font-weight: 650 !important;
-    }}
-
-
-    /* ================================================
-       TABLE
-    ================================================ */
-
-    [data-testid="stDataFrame"] {{
-        border: 1px solid {BORDER};
-    }}
-
-
-    /* ================================================
-       FOOTER
-    ================================================ */
-
-    .footer {{
-        border-top: 1px solid {BORDER};
-        margin-top: 2rem;
-        padding-top: 0.75rem;
-        text-align: center;
-        color: {MUTED};
-        font-size: 0.68rem;
-    }}
-
+    .attention-description {
+        font-size: .82rem;
+        color: #657385;
+    }
     </style>
     ''',
     unsafe_allow_html=True
 )
 
 
-# =========================================================
-# GOVERNMENT HEADER
-# =========================================================
+# ---------------------------------------------------------
+# Header
+# ---------------------------------------------------------
 
 st.markdown(
-    '<div class="tricolor-main"></div>',
+    '<div class="main-title">PRAGATI</div>',
     unsafe_allow_html=True
 )
 
 st.markdown(
-    '''
-    <div class="gov-header">
-
-        <div class="gov-small">
-            Government of India
-        </div>
-
-        <div class="gov-ministry">
-            Ministry of Statistics and Programme Implementation
-        </div>
-
-        <div class="gov-division">
-            Infrastructure & Project Monitoring Division
-        </div>
-
-        <div class="tricolor-mini"></div>
-
-    </div>
-    ''',
+    '<div class="sub-title">'
+    'Predictive Risk Analytics for Government Infrastructure '
+    'Tracking & Intelligence'
+    '</div>',
     unsafe_allow_html=True
 )
 
-
-# =========================================================
-# PRAGATI BRAND
-# =========================================================
-
-st.markdown(
-    '''
-    <div class="brand">
-
-        <div class="brand-row">
-
-            <div>
-                <div class="brand-name">
-                    PRAGATI
-                </div>
-
-                <div class="brand-description">
-                    Predictive Risk Analytics for Government
-                    Infrastructure Tracking & Intelligence
-                </div>
-            </div>
-
-            <div class="prototype">
-                Prototype / Demonstration System
-            </div>
-
-        </div>
-
-    </div>
-    ''',
-    unsafe_allow_html=True
+st.info(
+    'Prototype mode: this build uses the supplied PAIMANA project-level '
+    'snapshot. The attention score is a transparent screening proxy, not '
+    'a trained future-outcome prediction. Longitudinal prediction activates '
+    'when multiple reporting snapshots are available.'
 )
 
 
-# =========================================================
-# SYSTEM NOTE
-# =========================================================
+# ---------------------------------------------------------
+# Sidebar filters
+# ---------------------------------------------------------
 
-st.markdown(
-    '''
-    <div class="system-note">
-        <strong>Prototype status:</strong>
-        Current demonstration uses the supplied PAIMANA
-        project-level snapshot. Attention levels are generated
-        using transparent screening indicators and are not
-        trained future-outcome predictions.
-    </div>
-    ''',
-    unsafe_allow_html=True
-)
-
-
-# =========================================================
-# SIDEBAR
-# =========================================================
-
-st.sidebar.markdown(
-    '### Monitoring Filters'
-)
-
-st.sidebar.caption(
-    'Filter the project universe for analysis.'
-)
+st.sidebar.header('Project Filters')
 
 sector_options = (
     ['All'] +
@@ -831,13 +349,11 @@ min_progress, max_progress = st.sidebar.slider(
 filtered = df.copy()
 
 if sector != 'All':
-
     filtered = filtered[
         filtered['sector'] == sector
     ]
 
 if ministry != 'All':
-
     filtered = filtered[
         filtered['ministry'] == ministry
     ]
@@ -851,34 +367,24 @@ filtered = filtered[
 ]
 
 
-# =========================================================
-# SUMMARY
-# =========================================================
-
-st.markdown(
-    '''
-    <div class="section-title">
-        <div class="section-mark"></div>
-        Monitoring Summary
-    </div>
-    ''',
-    unsafe_allow_html=True
-)
+# ---------------------------------------------------------
+# Top metrics
+# ---------------------------------------------------------
 
 c1, c2, c3, c4 = st.columns(4)
 
 c1.metric(
-    'Projects in current view',
+    'Projects in view',
     f'{len(filtered):,}'
 )
 
 c2.metric(
-    'Original approved cost',
+    'Original cost',
     f'₹{filtered.original_cost.sum()/1000:,.1f}k cr'
 )
 
 c3.metric(
-    'Latest revised cost',
+    'Revised cost',
     f'₹{filtered.revised_cost.sum()/1000:,.1f}k cr'
 )
 
@@ -887,13 +393,15 @@ c4.metric(
     f'{(filtered.risk_level == "HIGH").sum():,}'
 )
 
+st.divider()
 
-# =========================================================
-# NAVIGATION
-# =========================================================
+
+# ---------------------------------------------------------
+# Navigation
+# ---------------------------------------------------------
 
 page = st.radio(
-    'PRAGATI modules',
+    'PRAGATI intelligence',
     [
         'Overview',
         'Project Intelligence',
@@ -911,32 +419,16 @@ page = st.radio(
 
 if page == 'Overview':
 
-    st.markdown(
-        '''
-        <div class="section-title">
-            <div class="section-mark"></div>
-            Infrastructure Project Monitoring Overview
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-
-    left, right = st.columns(
-        [1.35, 1]
-    )
+    left, right = st.columns([1.55, 1])
 
     with left:
 
-        st.markdown(
-            '#### Attention Distribution'
-        )
+        st.subheader('Emerging-risk landscape')
 
         chart = (
             filtered['risk_level']
             .value_counts()
-            .reindex(
-                ['HIGH', 'MEDIUM', 'LOW']
-            )
+            .reindex(['HIGH', 'MEDIUM', 'LOW'])
             .fillna(0)
             .astype(int)
         )
@@ -944,15 +436,14 @@ if page == 'Overview':
         st.bar_chart(chart)
 
         st.caption(
-            'Attention levels are based on the current '
-            'snapshot and available monitoring indicators.'
+            'Attention levels are based on cost escalation, '
+            'schedule revision and expenditure–progress divergence '
+            'in the current snapshot.'
         )
 
     with right:
 
-        st.markdown(
-            '#### Projects Requiring Attention'
-        )
+        st.subheader('Highest attention')
 
         cols = [
             'code',
@@ -988,15 +479,6 @@ if page == 'Overview':
             .round(1)
         )
 
-        top.columns = [
-            'Project Code',
-            'Project',
-            'Attention Score',
-            'Level',
-            'Cost Escalation %',
-            'Schedule Revision (mo)'
-        ]
-
         st.dataframe(
             top,
             use_container_width=True,
@@ -1010,15 +492,7 @@ if page == 'Overview':
 
 elif page == 'Project Intelligence':
 
-    st.markdown(
-        '''
-        <div class="section-title">
-            <div class="section-mark"></div>
-            Project Intelligence
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
+    st.subheader('Project Intelligence')
 
     choices = (
         filtered
@@ -1031,13 +505,13 @@ elif page == 'Project Intelligence':
     if len(choices) == 0:
 
         st.warning(
-            'No projects match the selected filters.'
+            'No projects match the current filters.'
         )
 
     else:
 
         selected_code = st.selectbox(
-            'Select Project',
+            'Select project',
             choices['code'].tolist(),
             format_func=lambda x:
                 f"{x} — "
@@ -1053,91 +527,49 @@ elif page == 'Project Intelligence':
         )
 
         st.caption(
-            f'Project Code: {p.code}  |  '
-            f'Sector: {p.sector}  |  '
-            f'Ministry / Department: {p.ministry}'
+            f'Project code {p.code} · '
+            f'{p.sector} · '
+            f'{p.ministry}'
         )
 
         a, b, c, d = st.columns(4)
 
         a.metric(
-            'Physical Progress',
-            (
-                f'{p.progress:.0f}%'
-                if pd.notna(p.progress)
-                else 'Not available'
-            )
+            'Physical progress',
+            f'{p.progress:.0f}%'
         )
 
         b.metric(
-            'Cost Escalation',
-            fmt_pct(
-                p.cost_escalation_pct
-            )
+            'Cost escalation',
+            f'{p.cost_escalation_pct:+.1f}%'
         )
 
         c.metric(
-            'Expenditure / Revised Cost',
-            (
-                f'{p.expenditure_share_pct:.1f}%'
-                if pd.notna(
-                    p.expenditure_share_pct
-                )
-                else 'Not available'
-            )
+            'Expenditure / revised cost',
+            f'{p.expenditure_share_pct:.1f}%'
         )
 
         d.metric(
-            'Schedule Revision',
-            (
-                f'{p.schedule_delay_months:+.1f} mo'
-                if pd.notna(
-                    p.schedule_delay_months
-                )
-                else 'Not available'
-            )
+            'Schedule revision',
+            f'{p.schedule_delay_months:+.1f} mo'
         )
 
-
         # -------------------------------------------------
-        # ATTENTION ASSESSMENT
+        # NEW ATTENTION UI
         # -------------------------------------------------
 
         st.markdown(
-            '''
-            <div class="section-title">
-                <div class="section-mark"></div>
-                PRAGATI Attention Assessment
-            </div>
-            ''',
-            unsafe_allow_html=True
+            '#### PRAGATI attention signal'
         )
 
-        level = (
-            str(p.risk_level)
-            if pd.notna(p.risk_level)
-            else 'UNAVAILABLE'
-        )
+        level = str(p.risk_level)
 
         if level == 'HIGH':
-
-            status_text = 'HIGH ATTENTION'
-            status_class = 'high'
-
+            badge_text = '🔴 HIGH ATTENTION'
         elif level == 'MEDIUM':
-
-            status_text = 'MEDIUM ATTENTION'
-            status_class = 'medium'
-
-        elif level == 'LOW':
-
-            status_text = 'LOW ATTENTION'
-            status_class = 'low'
-
+            badge_text = '🟠 MEDIUM ATTENTION'
         else:
-
-            status_text = 'ASSESSMENT UNAVAILABLE'
-            status_class = ''
+            badge_text = '🟢 LOW ATTENTION'
 
         left_attention, right_attention = st.columns(
             [1.4, 1]
@@ -1147,22 +579,17 @@ elif page == 'Project Intelligence':
 
             st.markdown(
                 f'''
-                <div class="attention {status_class}">
-
-                    <div class="attention-title">
-                        Current Monitoring Status
+                <div class="attention-card">
+                    <div class="attention-label">
+                        CURRENT ATTENTION LEVEL
                     </div>
-
-                    <div class="attention-value">
-                        {status_text}
+                    <div class="attention-badge">
+                        {badge_text}
                     </div>
-
-                    <div class="attention-text">
-                        Assessment based on the current
-                        project snapshot and available
-                        prototype indicators.
+                    <div class="attention-description">
+                        Based on the current project snapshot
+                        and prototype screening indicators.
                     </div>
-
                 </div>
                 ''',
                 unsafe_allow_html=True
@@ -1170,79 +597,52 @@ elif page == 'Project Intelligence':
 
         with right_attention:
 
-            if pd.notna(p.risk_score):
-
-                st.metric(
-                    'Attention Score',
-                    f'{p.risk_score:.1f} / 100',
-                    help=(
-                        'Prototype attention score. '
-                        'It is not a probability of project failure.'
-                    )
-                )
-
-            else:
-
-                st.metric(
-                    'Attention Score',
-                    'Not available'
-                )
-
-        if pd.notna(p.risk_score):
-
-            st.progress(
-                int(
-                    round(
-                        max(
-                            0,
-                            min(
-                                100,
-                                float(p.risk_score)
-                            )
-                        )
-                    )
+            st.metric(
+                'Attention score',
+                f'{p.risk_score:.1f} / 100',
+                help=(
+                    'This is a prototype attention score, '
+                    'NOT a probability of project failure.'
                 )
             )
 
-        st.markdown(
-            '''
-            <div class="note">
-                <strong>Interpretation:</strong>
-                The attention score is a transparent screening
-                measure for this prototype. It is not a probability
-                of project failure. A trained and calibrated
-                longitudinal ML model would be required for
-                predictive risk probabilities.
-            </div>
-            ''',
-            unsafe_allow_html=True
+        st.progress(
+            int(
+                round(
+                    max(
+                        0,
+                        min(
+                            100,
+                            float(p.risk_score)
+                        )
+                    )
+                )
+            ),
+            text=(
+                f'Prototype attention score: '
+                f'{p.risk_score:.1f}/100'
+            )
         )
 
+        st.caption(
+            '⚠️ This is an attention score, not a probability '
+            'of project failure. A trained and calibrated ML model '
+            'using longitudinal project data would generate the '
+            'final predictive risk probability.'
+        )
 
         # -------------------------------------------------
-        # CONTRIBUTING INDICATORS
+        # WHY IS THIS PROJECT RECEIVING ATTENTION?
         # -------------------------------------------------
 
         st.markdown(
-            '''
-            <div class="section-title">
-                <div class="section-mark"></div>
-                Contributing Monitoring Indicators
-            </div>
-            ''',
-            unsafe_allow_html=True
+            '#### Why is this project receiving attention?'
         )
 
         cost_contribution = min(
             max(
-                (
-                    float(
-                        p.cost_escalation_pct
-                    ) / 100
-                ) * 40
-                if pd.notna(
-                    p.cost_escalation_pct
-                )
+                (float(p.cost_escalation_pct) / 100) * 40
+                if pd.notna(p.cost_escalation_pct)
                 else 0,
                 0
             ),
@@ -1251,14 +651,8 @@ elif page == 'Project Intelligence':
 
         schedule_contribution = min(
             max(
-                (
-                    float(
-                        p.schedule_delay_months
-                    ) / 60
-                ) * 35
-                if pd.notna(
-                    p.schedule_delay_months
-                )
+                (float(p.schedule_delay_months) / 60) * 35
+                if pd.notna(p.schedule_delay_months)
                 else 0,
                 0
             ),
@@ -1267,14 +661,8 @@ elif page == 'Project Intelligence':
 
         gap_contribution = min(
             max(
-                (
-                    float(
-                        p.progress_gap_pct
-                    ) / 50
-                ) * 25
-                if pd.notna(
-                    p.progress_gap_pct
-                )
+                (float(p.progress_gap_pct) / 50) * 25
+                if pd.notna(p.progress_gap_pct)
                 else 0,
                 0
             ),
@@ -1282,13 +670,12 @@ elif page == 'Project Intelligence':
         )
 
         contribution_data = pd.DataFrame({
-            'Monitoring Indicator': [
+            'Indicator': [
                 'Cost escalation',
                 'Schedule revision',
                 'Progress–expenditure divergence'
             ],
-
-            'Attention Contribution': [
+            'Attention contribution': [
                 cost_contribution,
                 schedule_contribution,
                 gap_contribution
@@ -1296,12 +683,10 @@ elif page == 'Project Intelligence':
         })
 
         contribution_data[
-            'Attention Contribution'
-        ] = (
-            contribution_data[
-                'Attention Contribution'
-            ].round(1)
-        )
+            'Attention contribution'
+        ] = contribution_data[
+            'Attention contribution'
+        ].round(1)
 
         st.dataframe(
             contribution_data,
@@ -1309,31 +694,12 @@ elif page == 'Project Intelligence':
             hide_index=True
         )
 
-
-        # -------------------------------------------------
-        # MONITORING OBSERVATIONS
-        # -------------------------------------------------
-
-        st.markdown(
-            '''
-            <div class="section-title">
-                <div class="section-mark"></div>
-                Monitoring Observations
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
-
         reasons = []
 
         if (
-            pd.notna(
-                p.cost_escalation_pct
-            )
-            and
-            p.cost_escalation_pct > 10
+            pd.notna(p.cost_escalation_pct)
+            and p.cost_escalation_pct > 10
         ):
-
             reasons.append(
                 f'Cost escalation is '
                 f'{p.cost_escalation_pct:.1f}% '
@@ -1341,13 +707,9 @@ elif page == 'Project Intelligence':
             )
 
         if (
-            pd.notna(
-                p.schedule_delay_months
-            )
-            and
-            p.schedule_delay_months > 3
+            pd.notna(p.schedule_delay_months)
+            and p.schedule_delay_months > 3
         ):
-
             reasons.append(
                 f'Revised commissioning is '
                 f'{p.schedule_delay_months:.1f} months '
@@ -1355,13 +717,9 @@ elif page == 'Project Intelligence':
             )
 
         if (
-            pd.notna(
-                p.progress_gap_pct
-            )
-            and
-            p.progress_gap_pct > 10
+            pd.notna(p.progress_gap_pct)
+            and p.progress_gap_pct > 10
         ):
-
             reasons.append(
                 f'Expenditure share '
                 f'({p.expenditure_share_pct:.1f}%) '
@@ -1372,94 +730,58 @@ elif page == 'Project Intelligence':
             )
 
         if not reasons:
-
             reasons.append(
                 'No strong attention signal is triggered '
                 'by the current prototype rules.'
             )
 
-        for reason in reasons:
-
-            st.write(
-                '• ' + reason
-            )
+        for r in reasons:
+            st.write('• ' + r)
 
         st.caption(
-            'These indicators describe the basis of the '
-            'prototype attention assessment. They are not '
-            'causal findings.'
+            'These indicators describe why the prototype '
+            'assigns attention; they are not causal findings. '
+            'The final system would replace this transparent '
+            'screening score with trained longitudinal ML models '
+            'and calibrated risk estimates.'
         )
 
-
         # -------------------------------------------------
-        # PROJECT INFORMATION
+        # PROJECT FACTS
         # -------------------------------------------------
 
         st.markdown(
-            '''
-            <div class="section-title">
-                <div class="section-mark"></div>
-                Project Information
-            </div>
-            ''',
-            unsafe_allow_html=True
+            '#### Project facts'
         )
 
         facts = pd.DataFrame({
-
-            'Parameter': [
-
-                'Original approved cost',
-                'Latest revised cost',
-                'Cumulative expenditure',
-                'Original commissioning date',
-                'Revised commissioning date',
+            'Metric': [
+                'Original cost',
+                'Revised cost',
+                'Expenditure',
+                'Original commissioning',
+                'Revised commissioning',
                 'Implementing agency'
-
             ],
 
             'Value': [
+                f'₹{p.original_cost:,.2f} cr',
+                f'₹{p.revised_cost:,.2f} cr',
+                f'₹{p.expenditure:,.2f} cr',
 
-                fmt_currency(
-                    p.original_cost
-                ),
-
-                fmt_currency(
-                    p.revised_cost
-                ),
-
-                fmt_currency(
-                    p.expenditure
+                (
+                    p.original_date.strftime('%d %b %Y')
+                    if pd.notna(p.original_date)
+                    else '—'
                 ),
 
                 (
-                    p.original_date.strftime(
-                        '%d %b %Y'
-                    )
-                    if pd.notna(
-                        p.original_date
-                    )
-                    else 'Not available'
+                    p.revised_date.strftime('%d %b %Y')
+                    if pd.notna(p.revised_date)
+                    else '—'
                 ),
 
-                (
-                    p.revised_date.strftime(
-                        '%d %b %Y'
-                    )
-                    if pd.notna(
-                        p.revised_date
-                    )
-                    else 'Not available'
-                ),
-
-                (
-                    p.agency
-                    if pd.notna(
-                        p.agency
-                    )
-                    else 'Not available'
-                )
-
+                p.agency
             ]
         })
 
@@ -1476,26 +798,14 @@ elif page == 'Project Intelligence':
 
 elif page == 'Historical Memory':
 
-    st.markdown(
-        '''
-        <div class="section-title">
-            <div class="section-mark"></div>
-            Historical Institutional Memory
-        </div>
-        ''',
-        unsafe_allow_html=True
+    st.subheader(
+        'Historical Institutional Memory'
     )
 
-    st.markdown(
-        '''
-        <div class="note">
-            The prototype analogue engine identifies projects
-            with similar sector, physical progress, cost scale
-            and expenditure characteristics. Similarity is
-            contextual and does not imply identical outcomes.
-        </div>
-        ''',
-        unsafe_allow_html=True
+    st.caption(
+        'Prototype analogue engine: finds projects with similar '
+        'sector, progress, cost scale and expenditure share. '
+        'Similarity is contextual, not proof of a common outcome.'
     )
 
     historical_choices = (
@@ -1509,7 +819,8 @@ elif page == 'Historical Memory':
     if len(historical_choices) == 0:
 
         st.warning(
-            'No projects match the selected filters.'
+            'No projects match the current filters. '
+            'Adjust the sidebar filters to use Historical Memory.'
         )
 
     else:
@@ -1533,7 +844,6 @@ elif page == 'Historical Memory':
         ].copy()
 
         if len(sector_projects) >= 5:
-
             cand = sector_projects
 
         features = [
@@ -1601,6 +911,13 @@ elif page == 'Historical Memory':
             )
         )
 
+        med_values = (
+            med
+            .to_numpy(
+                dtype=np.float64
+            )
+        )
+
         mad_values = (
             mad
             .to_numpy(
@@ -1613,8 +930,7 @@ elif page == 'Historical Memory':
                 candidate_values -
                 target_values
             )
-            /
-            mad_values
+            / mad_values
         )
 
         z = np.nan_to_num(
@@ -1631,9 +947,7 @@ elif page == 'Historical Memory':
             )
         )
 
-        cand[
-            'similarity_distance'
-        ] = distances
+        cand['similarity_distance'] = distances
 
         analogues = (
             cand
@@ -1681,10 +995,6 @@ elif page == 'Historical Memory':
             'Attention'
         ]
 
-        st.markdown(
-            '#### Comparable Projects'
-        )
-
         st.dataframe(
             show,
             use_container_width=True,
@@ -1698,103 +1008,38 @@ elif page == 'Historical Memory':
 
 elif page == 'Methodology':
 
-    st.markdown(
-        '''
-        <div class="section-title">
-            <div class="section-mark"></div>
-            Methodology & System Limitations
-        </div>
-        ''',
-        unsafe_allow_html=True
+    st.subheader(
+        'How the prototype works'
     )
 
     st.markdown(
         '''
-### 1. Current Data Layer
+**Current snapshot layer**
 
-PAIMANA project-level fields are processed through
-validation and derived-indicator generation.
+PAIMANA project-level fields → validation → derived indicators → transparent attention score → explanation → historical analogues.
 
-### 2. Derived Monitoring Indicators
+**Derived indicators**
 
-**Cost escalation**
+- Cost escalation = (Revised Cost / Original Cost − 1) × 100
+- Expenditure share = Expenditure / Revised Cost × 100
+- Progress–expenditure gap = Expenditure share − Physical progress
+- Schedule revision = Revised commissioning date − Original commissioning date
 
-(Revised Cost / Original Cost − 1) × 100
+**Prototype attention score**
 
-**Expenditure share**
+40% cost escalation + 35% schedule revision + 25% positive progress–expenditure gap, with robust caps to reduce outlier domination.
 
-Expenditure / Revised Cost × 100
+**What is deliberately NOT claimed**
 
-**Progress–expenditure divergence**
-
-Expenditure share − Physical progress
-
-**Schedule revision**
-
-Revised commissioning date − Original commissioning date
-
-### 3. Prototype Attention Assessment
-
-The current demonstration uses a transparent weighted
-screening approach:
-
-- 40% — cost escalation
-- 35% — schedule revision
-- 25% — positive progress–expenditure divergence
-
-Indicators that are unavailable or invalid are excluded
-and the remaining weights are renormalised.
-
-### 4. Historical Institutional Memory
-
-Projects are compared using contextual similarity across
-selected project characteristics.
-
-### 5. Future Predictive Layer
-
-The intended production architecture can incorporate
-longitudinal PAIMANA / OCMS observations to develop:
-
-- Cost-overrun prediction
-- Schedule-overrun prediction
-- Implementation-risk prediction
-- Calibrated early-warning probabilities
-- Explainable model outputs
-
-### 6. Current Limitation
-
-The present dataset is a project-level snapshot.
-
-Therefore, this prototype does **not** claim measured
-future-outcome prediction accuracy.
-
-Longitudinal observations are required for time-based
-training, validation and testing.
+This snapshot alone cannot establish future-overrun prediction accuracy. Longitudinal prediction requires multiple reporting periods and a future outcome definition, followed by time-based train/validation/test evaluation.
 '''
     )
 
 
-# =========================================================
-# FOOTER
-# =========================================================
+st.divider()
 
-st.markdown(
-    '''
-    <div class="footer">
-
-        PRAGATI Prototype · Infrastructure Project Monitoring
-        Decision-Support Concept
-
-        <br>
-
-        Demonstration system using the supplied PAIMANA
-        project-level report
-
-        <br>
-
-        Not an official Government of India application
-
-    </div>
-    ''',
-    unsafe_allow_html=True
+st.caption(
+    'PRAGATI prototype · Built on the supplied PAIMANA '
+    'project report · For demonstration and decision-support '
+    'concept validation'
 )
