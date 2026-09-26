@@ -3,6 +3,10 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
+# =========================================================
+# PAGE CONFIG
+# =========================================================
+
 st.set_page_config(
     page_title='PRAGATI | Infrastructure Project Monitoring',
     page_icon='🇮🇳',
@@ -11,6 +15,65 @@ st.set_page_config(
 )
 
 DATA_FILE = Path(__file__).parent / 'Projects_Report.xlsx'
+
+
+# =========================================================
+# THEME
+# =========================================================
+
+if 'theme' not in st.session_state:
+    st.session_state.theme = 'Light'
+
+st.sidebar.markdown('### Display')
+
+theme = st.sidebar.radio(
+    'Theme',
+    ['Light', 'Dark'],
+    index=0 if st.session_state.theme == 'Light' else 1,
+    horizontal=True,
+    label_visibility='collapsed'
+)
+
+st.session_state.theme = theme
+
+dark_mode = theme == 'Dark'
+
+
+# =========================================================
+# THEME COLOURS
+# =========================================================
+
+if dark_mode:
+
+    BG = '#101820'
+    SURFACE = '#17232d'
+    SURFACE_2 = '#1d2b36'
+    TEXT = '#edf2f7'
+    MUTED = '#aab7c4'
+    BORDER = '#344451'
+    NAVY = '#6ea8d8'
+    NAVY_DARK = '#17395f'
+    TABLE_BG = '#17232d'
+    TABLE_TEXT = '#edf2f7'
+    SIDEBAR = '#0d151c'
+    NOTE_BG = '#16232e'
+    NOTE_BORDER = '#40515f'
+
+else:
+
+    BG = '#f4f6f8'
+    SURFACE = '#ffffff'
+    SURFACE_2 = '#f7f9fb'
+    TEXT = '#17202a'
+    MUTED = '#607080'
+    BORDER = '#d5dce3'
+    NAVY = '#17395f'
+    NAVY_DARK = '#17395f'
+    TABLE_BG = '#ffffff'
+    TABLE_TEXT = '#17202a'
+    SIDEBAR = '#eef1f5'
+    NOTE_BG = '#f7f9fb'
+    NOTE_BORDER = '#cbd5df'
 
 
 # =========================================================
@@ -76,7 +139,7 @@ def load_data():
     )
 
     # -----------------------------------------------------
-    # Cost escalation
+    # COST ESCALATION
     # -----------------------------------------------------
 
     df['cost_escalation_pct'] = np.where(
@@ -90,7 +153,7 @@ def load_data():
     )
 
     # -----------------------------------------------------
-    # Expenditure share
+    # EXPENDITURE SHARE
     # -----------------------------------------------------
 
     df['expenditure_share_pct'] = np.where(
@@ -103,7 +166,7 @@ def load_data():
     )
 
     # -----------------------------------------------------
-    # Progress / expenditure divergence
+    # PROGRESS / EXPENDITURE DIVERGENCE
     # -----------------------------------------------------
 
     df['progress_gap_pct'] = (
@@ -112,7 +175,7 @@ def load_data():
     )
 
     # -----------------------------------------------------
-    # Schedule revision
+    # SCHEDULE REVISION
     # -----------------------------------------------------
 
     df['schedule_delay_days'] = (
@@ -121,7 +184,8 @@ def load_data():
     ).dt.days
 
     df['schedule_delay_months'] = (
-        df['schedule_delay_days'] / 30.44
+        df['schedule_delay_days'] /
+        30.44
     )
 
     derived_columns = [
@@ -167,8 +231,6 @@ def add_risk_score(d):
         errors='coerce'
     )
 
-    # Invalid indicators are unavailable,
-    # not zero-risk observations.
     cost = cost.where(cost >= 0)
     delay = delay.where(delay >= 0)
     gap = gap.where(gap >= 0)
@@ -272,14 +334,6 @@ def fmt_pct(value, decimals=1):
     return f'{value:+.{decimals}f}%'
 
 
-def fmt_num(value, decimals=1):
-
-    if pd.isna(value):
-        return 'Not available'
-
-    return f'{value:.{decimals}f}'
-
-
 def fmt_currency(value):
 
     if pd.isna(value):
@@ -289,298 +343,351 @@ def fmt_currency(value):
 
 
 # =========================================================
-# GOVERNMENT-STYLE DESIGN
+# CUSTOM CSS
 # =========================================================
 
 st.markdown(
-    '''
+    f'''
     <style>
 
-    /* -------------------------------------------------
+    /* ================================================
        GLOBAL
-    ------------------------------------------------- */
+    ================================================ */
 
-    .stApp {
-        background: #f5f6f8;
-        color: #17202a;
-        font-family:
-            "Noto Sans",
-            "Segoe UI",
-            Arial,
-            sans-serif;
-    }
+    .stApp {{
+        background: {BG};
+        color: {TEXT};
+    }}
 
-    .block-container {
+    .block-container {{
         max-width: 1500px;
-        padding-top: 0.8rem;
+        padding-top: 0.65rem;
         padding-bottom: 2rem;
-    }
+    }}
 
-    h1, h2, h3, h4 {
-        color: #17202a !important;
-        font-weight: 650 !important;
-    }
+    h1, h2, h3, h4 {{
+        color: {TEXT} !important;
+    }}
 
-    h3 {
-        margin-top: 1rem !important;
-    }
+    p, span, label {{
+        color: {TEXT};
+    }}
 
-    /* -------------------------------------------------
-       TRICOLOUR GOVERNMENT BAR
-    ------------------------------------------------- */
+    .stCaption {{
+        color: {MUTED} !important;
+    }}
 
-    .tricolour-bar {
-        height: 6px;
+
+    /* ================================================
+       TRICOLOUR STRIP
+    ================================================ */
+
+    .tricolor-main {{
+        height: 7px;
         width: 100%;
-        margin-bottom: 0.9rem;
+        margin-bottom: 0.75rem;
+
         background:
-            linear-gradient(
-                to right,
-                #ff9933 0%,
-                #ff9933 33.33%,
-                #ffffff 33.33%,
-                #ffffff 66.66%,
-                #138808 66.66%,
-                #138808 100%
-            );
-        border: 1px solid #d8d8d8;
-    }
+        linear-gradient(
+            to right,
+            #ff9933 0%,
+            #ff9933 33.33%,
+            #ffffff 33.33%,
+            #ffffff 66.66%,
+            #138808 66.66%,
+            #138808 100%
+        );
 
-    /* -------------------------------------------------
+        border: 1px solid rgba(100,100,100,0.25);
+    }}
+
+
+    /* ================================================
+       SECONDARY TRICOLOUR ACCENT
+    ================================================ */
+
+    .tricolor-mini {{
+        height: 3px;
+        width: 105px;
+        margin-top: 0.35rem;
+
+        background:
+        linear-gradient(
+            to right,
+            #ff9933 0%,
+            #ff9933 33.33%,
+            #ffffff 33.33%,
+            #ffffff 66.66%,
+            #138808 66.66%,
+            #138808 100%
+        );
+    }}
+
+
+    /* ================================================
        GOVERNMENT HEADER
-    ------------------------------------------------- */
+    ================================================ */
 
-    .gov-header {
-        background: #ffffff;
-        border: 1px solid #d9dee5;
-        border-top: 4px solid #1b3a63;
-        padding: 0.9rem 1.15rem;
-        margin-bottom: 0;
-    }
+    .gov-header {{
+        background: {SURFACE};
+        border: 1px solid {BORDER};
+        border-top: 4px solid {NAVY};
+        padding: 0.85rem 1.15rem;
+    }}
 
-    .gov-title {
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.035em;
-        color: #26384d;
+    .gov-small {{
+        font-size: 0.72rem;
         text-transform: uppercase;
-    }
-
-    .gov-ministry {
-        font-size: 1.05rem;
+        letter-spacing: 0.07em;
         font-weight: 700;
-        color: #17202a;
-        margin-top: 0.18rem;
-    }
+        color: {MUTED};
+    }}
 
-    .gov-division {
-        font-size: 0.83rem;
-        color: #586777;
+    .gov-ministry {{
+        font-size: 1.04rem;
+        font-weight: 750;
         margin-top: 0.12rem;
-    }
+        color: {TEXT};
+    }}
 
-    /* -------------------------------------------------
-       PRAGATI BRAND PANEL
-    ------------------------------------------------- */
+    .gov-division {{
+        font-size: 0.79rem;
+        margin-top: 0.12rem;
+        color: {MUTED};
+    }}
 
-    .brand-panel {
-        background: #ffffff;
-        border-left: 5px solid #1b3a63;
-        border-right: 1px solid #d9dee5;
-        border-bottom: 1px solid #d9dee5;
-        padding: 1rem 1.15rem;
-        margin-bottom: 0.8rem;
-    }
 
-    .brand-name {
+    /* ================================================
+       PRAGATI HEADER
+    ================================================ */
+
+    .brand {{
+        background: {SURFACE};
+        border: 1px solid {BORDER};
+        border-top: none;
+        padding: 0.85rem 1.15rem;
+        margin-bottom: 0.75rem;
+    }}
+
+    .brand-row {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }}
+
+    .brand-name {{
+        color: {NAVY};
         font-size: 1.85rem;
-        font-weight: 800;
-        letter-spacing: 0.04em;
-        color: #17395f;
-    }
+        font-weight: 850;
+        letter-spacing: 0.06em;
+    }}
 
-    .brand-full {
-        font-size: 0.82rem;
-        color: #526273;
-        margin-top: 0.1rem;
-    }
-
-    .prototype-tag {
-        display: inline-block;
-        margin-top: 0.55rem;
-        padding: 0.22rem 0.55rem;
-        border: 1px solid #b7c3d1;
-        background: #f2f5f8;
-        color: #435466;
-        font-size: 0.69rem;
-        font-weight: 700;
-        letter-spacing: 0.045em;
-        text-transform: uppercase;
-    }
-
-    /* -------------------------------------------------
-       NAVIGATION
-    ------------------------------------------------- */
-
-    div[role="radiogroup"] {
-        background: #17395f;
-        padding: 0.15rem 0.35rem;
-        border: 1px solid #17395f;
-    }
-
-    div[role="radiogroup"] label {
-        color: #ffffff !important;
-        font-size: 0.82rem !important;
-        font-weight: 600 !important;
-    }
-
-    div[role="radiogroup"] label:hover {
-        background: #234c78;
-    }
-
-    /* -------------------------------------------------
-       SIDEBAR
-    ------------------------------------------------- */
-
-    section[data-testid="stSidebar"] {
-        background: #eef1f5;
-        border-right: 1px solid #d2d8df;
-    }
-
-    section[data-testid="stSidebar"] h2 {
-        color: #17395f !important;
-        font-size: 1rem !important;
-    }
-
-    /* -------------------------------------------------
-       INFORMATION BANNER
-    ------------------------------------------------- */
-
-    .system-note {
-        background: #f7f9fb;
-        border: 1px solid #ccd5df;
-        border-left: 4px solid #17395f;
-        padding: 0.7rem 0.9rem;
-        margin: 0.8rem 0 1rem 0;
+    .brand-description {{
+        color: {MUTED};
         font-size: 0.78rem;
-        color: #4c5d6e;
-    }
+        margin-top: 0.05rem;
+    }}
 
-    /* -------------------------------------------------
-       SECTION HEADERS
-    ------------------------------------------------- */
-
-    .section-heading {
-        border-left: 4px solid #ff9933;
-        padding-left: 0.65rem;
-        margin-top: 1.2rem;
-        margin-bottom: 0.8rem;
-        color: #17395f;
-        font-size: 1.05rem;
-        font-weight: 700;
-    }
-
-    /* -------------------------------------------------
-       METRIC PANELS
-    ------------------------------------------------- */
-
-    div[data-testid="stMetric"] {
-        background: #ffffff;
-        border: 1px solid #d8dee6;
-        border-radius: 2px;
-        padding: 0.7rem 0.85rem;
-        min-height: 92px;
-    }
-
-    div[data-testid="stMetricLabel"] {
-        color: #5c6c7c !important;
-        font-size: 0.74rem !important;
-        font-weight: 600 !important;
-    }
-
-    div[data-testid="stMetricValue"] {
-        color: #17395f !important;
-        font-size: 1.45rem !important;
-        font-weight: 700 !important;
-    }
-
-    /* -------------------------------------------------
-       TABLES
-    ------------------------------------------------- */
-
-    [data-testid="stDataFrame"] {
-        border: 1px solid #d5dbe2;
-    }
-
-    /* -------------------------------------------------
-       ATTENTION PANEL
-    ------------------------------------------------- */
-
-    .attention-panel {
-        background: #ffffff;
-        border: 1px solid #d4dbe3;
-        border-left: 5px solid #17395f;
-        padding: 1rem;
-        min-height: 130px;
-    }
-
-    .attention-title {
-        font-size: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        color: #687787;
+    .prototype {{
+        display: inline-block;
+        border: 1px solid {BORDER};
+        background: {SURFACE_2};
+        color: {MUTED};
+        padding: 0.28rem 0.55rem;
+        font-size: 0.65rem;
+        font-weight: 750;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
-        margin-bottom: 0.45rem;
-    }
+    }}
 
-    .attention-status {
-        font-size: 1.1rem;
-        font-weight: 800;
-        color: #17395f;
-        margin-bottom: 0.4rem;
-    }
 
-    .attention-description {
-        color: #657484;
-        font-size: 0.77rem;
-    }
+    /* ================================================
+       SYSTEM NOTICE
+    ================================================ */
 
-    .status-high {
-        border-left-color: #b3261e;
-    }
-
-    .status-medium {
-        border-left-color: #b26a00;
-    }
-
-    .status-low {
-        border-left-color: #18794e;
-    }
-
-    /* -------------------------------------------------
-       OFFICIAL NOTE
-    ------------------------------------------------- */
-
-    .official-note {
-        background: #fafafa;
-        border: 1px solid #d8dde3;
-        padding: 0.7rem 0.85rem;
+    .system-note {{
+        background: {NOTE_BG};
+        border: 1px solid {NOTE_BORDER};
+        border-left: 4px solid {NAVY};
+        padding: 0.65rem 0.85rem;
+        margin: 0.75rem 0 1rem 0;
         font-size: 0.76rem;
-        color: #596978;
-    }
+        color: {MUTED};
+    }}
 
-    /* -------------------------------------------------
+
+    /* ================================================
+       SECTION HEADER
+    ================================================ */
+
+    .section-title {{
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 1.02rem;
+        font-weight: 750;
+        color: {TEXT};
+        border-bottom: 1px solid {BORDER};
+        padding-bottom: 0.45rem;
+        margin-top: 1.1rem;
+        margin-bottom: 0.8rem;
+    }}
+
+    .section-mark {{
+        width: 5px;
+        height: 22px;
+
+        background:
+        linear-gradient(
+            to bottom,
+            #ff9933 0%,
+            #ff9933 33.33%,
+            #ffffff 33.33%,
+            #ffffff 66.66%,
+            #138808 66.66%,
+            #138808 100%
+        );
+
+        border: 1px solid rgba(100,100,100,0.25);
+    }}
+
+
+    /* ================================================
+       METRICS
+    ================================================ */
+
+    div[data-testid="stMetric"] {{
+        background: {SURFACE};
+        border: 1px solid {BORDER};
+        border-radius: 2px;
+        padding: 0.65rem 0.8rem;
+        min-height: 90px;
+    }}
+
+    div[data-testid="stMetricLabel"] {{
+        color: {MUTED} !important;
+        font-size: 0.72rem !important;
+        font-weight: 650 !important;
+    }}
+
+    div[data-testid="stMetricValue"] {{
+        color: {NAVY} !important;
+        font-size: 1.38rem !important;
+        font-weight: 750 !important;
+    }}
+
+
+    /* ================================================
+       ATTENTION PANELS
+    ================================================ */
+
+    .attention {{
+        background: {SURFACE};
+        border: 1px solid {BORDER};
+        border-left: 5px solid {NAVY};
+        padding: 0.95rem;
+        min-height: 115px;
+    }}
+
+    .attention.high {{
+        border-left-color: #c62828;
+    }}
+
+    .attention.medium {{
+        border-left-color: #c77c00;
+    }}
+
+    .attention.low {{
+        border-left-color: #17804c;
+    }}
+
+    .attention-title {{
+        color: {MUTED};
+        font-size: 0.68rem;
+        font-weight: 750;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }}
+
+    .attention-value {{
+        color: {TEXT};
+        font-size: 1.08rem;
+        font-weight: 800;
+        margin-top: 0.35rem;
+        margin-bottom: 0.35rem;
+    }}
+
+    .attention-text {{
+        color: {MUTED};
+        font-size: 0.75rem;
+    }}
+
+
+    /* ================================================
+       NOTES
+    ================================================ */
+
+    .note {{
+        background: {SURFACE_2};
+        border: 1px solid {BORDER};
+        padding: 0.7rem 0.85rem;
+        color: {MUTED};
+        font-size: 0.74rem;
+    }}
+
+
+    /* ================================================
+       SIDEBAR
+    ================================================ */
+
+    section[data-testid="stSidebar"] {{
+        background: {SIDEBAR};
+        border-right: 1px solid {BORDER};
+    }}
+
+    section[data-testid="stSidebar"] h3 {{
+        color: {NAVY} !important;
+    }}
+
+
+    /* ================================================
+       RADIO NAVIGATION
+    ================================================ */
+
+    div[role="radiogroup"] {{
+        background: {NAVY_DARK};
+        border: 1px solid {NAVY_DARK};
+        padding: 0.25rem 0.35rem;
+    }}
+
+    div[role="radiogroup"] label {{
+        color: #ffffff !important;
+        font-size: 0.78rem !important;
+        font-weight: 650 !important;
+    }}
+
+
+    /* ================================================
+       TABLE
+    ================================================ */
+
+    [data-testid="stDataFrame"] {{
+        border: 1px solid {BORDER};
+    }}
+
+
+    /* ================================================
        FOOTER
-    ------------------------------------------------- */
+    ================================================ */
 
-    .footer {
-        border-top: 1px solid #d4d9df;
+    .footer {{
+        border-top: 1px solid {BORDER};
         margin-top: 2rem;
-        padding-top: 0.7rem;
-        font-size: 0.7rem;
-        color: #687786;
+        padding-top: 0.75rem;
         text-align: center;
-    }
+        color: {MUTED};
+        font-size: 0.68rem;
+    }}
 
     </style>
     ''',
@@ -593,51 +700,79 @@ st.markdown(
 # =========================================================
 
 st.markdown(
-    '<div class="tricolour-bar"></div>',
+    '<div class="tricolor-main"></div>',
     unsafe_allow_html=True
 )
 
 st.markdown(
     '''
     <div class="gov-header">
-        <div class="gov-title">
+
+        <div class="gov-small">
             Government of India
         </div>
+
         <div class="gov-ministry">
             Ministry of Statistics and Programme Implementation
         </div>
+
         <div class="gov-division">
             Infrastructure & Project Monitoring Division
         </div>
+
+        <div class="tricolor-mini"></div>
+
     </div>
     ''',
     unsafe_allow_html=True
 )
 
+
+# =========================================================
+# PRAGATI BRAND
+# =========================================================
+
 st.markdown(
     '''
-    <div class="brand-panel">
-        <div class="brand-name">PRAGATI</div>
-        <div class="brand-full">
-            Predictive Risk Analytics for Government Infrastructure
-            Tracking & Intelligence
+    <div class="brand">
+
+        <div class="brand-row">
+
+            <div>
+                <div class="brand-name">
+                    PRAGATI
+                </div>
+
+                <div class="brand-description">
+                    Predictive Risk Analytics for Government
+                    Infrastructure Tracking & Intelligence
+                </div>
+            </div>
+
+            <div class="prototype">
+                Prototype / Demonstration System
+            </div>
+
         </div>
-        <div class="prototype-tag">
-            Prototype / Demonstration System
-        </div>
+
     </div>
     ''',
     unsafe_allow_html=True
 )
+
+
+# =========================================================
+# SYSTEM NOTE
+# =========================================================
 
 st.markdown(
     '''
     <div class="system-note">
-        <strong>System status:</strong>
-        Prototype monitoring layer using the supplied PAIMANA
-        project-level snapshot. Current attention levels are based
-        on transparent screening indicators and are not trained
-        future-outcome predictions.
+        <strong>Prototype status:</strong>
+        Current demonstration uses the supplied PAIMANA
+        project-level snapshot. Attention levels are generated
+        using transparent screening indicators and are not
+        trained future-outcome predictions.
     </div>
     ''',
     unsafe_allow_html=True
@@ -645,15 +780,15 @@ st.markdown(
 
 
 # =========================================================
-# SIDEBAR FILTERS
+# SIDEBAR
 # =========================================================
 
 st.sidebar.markdown(
-    '## Monitoring Filters'
+    '### Monitoring Filters'
 )
 
 st.sidebar.caption(
-    'Filter the project universe for the current analysis.'
+    'Filter the project universe for analysis.'
 )
 
 sector_options = (
@@ -696,11 +831,13 @@ min_progress, max_progress = st.sidebar.slider(
 filtered = df.copy()
 
 if sector != 'All':
+
     filtered = filtered[
         filtered['sector'] == sector
     ]
 
 if ministry != 'All':
+
     filtered = filtered[
         filtered['ministry'] == ministry
     ]
@@ -719,7 +856,12 @@ filtered = filtered[
 # =========================================================
 
 st.markdown(
-    '<div class="section-heading">Monitoring Summary</div>',
+    '''
+    <div class="section-title">
+        <div class="section-mark"></div>
+        Monitoring Summary
+    </div>
+    ''',
     unsafe_allow_html=True
 )
 
@@ -741,7 +883,7 @@ c3.metric(
 )
 
 c4.metric(
-    'Projects requiring high attention',
+    'High-attention projects',
     f'{(filtered.risk_level == "HIGH").sum():,}'
 )
 
@@ -770,9 +912,12 @@ page = st.radio(
 if page == 'Overview':
 
     st.markdown(
-        '<div class="section-heading">'
-        'Infrastructure Project Monitoring Overview'
-        '</div>',
+        '''
+        <div class="section-title">
+            <div class="section-mark"></div>
+            Infrastructure Project Monitoring Overview
+        </div>
+        ''',
         unsafe_allow_html=True
     )
 
@@ -783,7 +928,7 @@ if page == 'Overview':
     with left:
 
         st.markdown(
-            '### Attention Distribution'
+            '#### Attention Distribution'
         )
 
         chart = (
@@ -799,15 +944,14 @@ if page == 'Overview':
         st.bar_chart(chart)
 
         st.caption(
-            'Prototype attention levels are derived from cost '
-            'escalation, schedule revision and positive '
-            'expenditure–progress divergence.'
+            'Attention levels are based on the current '
+            'snapshot and available monitoring indicators.'
         )
 
     with right:
 
         st.markdown(
-            '### Projects Requiring Attention'
+            '#### Projects Requiring Attention'
         )
 
         cols = [
@@ -867,9 +1011,12 @@ if page == 'Overview':
 elif page == 'Project Intelligence':
 
     st.markdown(
-        '<div class="section-heading">'
-        'Project Intelligence'
-        '</div>',
+        '''
+        <div class="section-title">
+            <div class="section-mark"></div>
+            Project Intelligence
+        </div>
+        ''',
         unsafe_allow_html=True
     )
 
@@ -884,7 +1031,7 @@ elif page == 'Project Intelligence':
     if len(choices) == 0:
 
         st.warning(
-            'No projects match the selected monitoring filters.'
+            'No projects match the selected filters.'
         )
 
     else:
@@ -924,14 +1071,18 @@ elif page == 'Project Intelligence':
 
         b.metric(
             'Cost Escalation',
-            fmt_pct(p.cost_escalation_pct)
+            fmt_pct(
+                p.cost_escalation_pct
+            )
         )
 
         c.metric(
             'Expenditure / Revised Cost',
             (
                 f'{p.expenditure_share_pct:.1f}%'
-                if pd.notna(p.expenditure_share_pct)
+                if pd.notna(
+                    p.expenditure_share_pct
+                )
                 else 'Not available'
             )
         )
@@ -940,19 +1091,25 @@ elif page == 'Project Intelligence':
             'Schedule Revision',
             (
                 f'{p.schedule_delay_months:+.1f} mo'
-                if pd.notna(p.schedule_delay_months)
+                if pd.notna(
+                    p.schedule_delay_months
+                )
                 else 'Not available'
             )
         )
 
+
         # -------------------------------------------------
-        # ATTENTION
+        # ATTENTION ASSESSMENT
         # -------------------------------------------------
 
         st.markdown(
-            '<div class="section-heading">'
-            'PRAGATI Attention Assessment'
-            '</div>',
+            '''
+            <div class="section-title">
+                <div class="section-mark"></div>
+                PRAGATI Attention Assessment
+            </div>
+            ''',
             unsafe_allow_html=True
         )
 
@@ -965,17 +1122,17 @@ elif page == 'Project Intelligence':
         if level == 'HIGH':
 
             status_text = 'HIGH ATTENTION'
-            status_class = 'status-high'
+            status_class = 'high'
 
         elif level == 'MEDIUM':
 
             status_text = 'MEDIUM ATTENTION'
-            status_class = 'status-medium'
+            status_class = 'medium'
 
         elif level == 'LOW':
 
             status_text = 'LOW ATTENTION'
-            status_class = 'status-low'
+            status_class = 'low'
 
         else:
 
@@ -990,19 +1147,22 @@ elif page == 'Project Intelligence':
 
             st.markdown(
                 f'''
-                <div class="attention-panel {status_class}">
+                <div class="attention {status_class}">
+
                     <div class="attention-title">
                         Current Monitoring Status
                     </div>
 
-                    <div class="attention-status">
+                    <div class="attention-value">
                         {status_text}
                     </div>
 
-                    <div class="attention-description">
-                        Assessment based on the current project
-                        snapshot and available prototype indicators.
+                    <div class="attention-text">
+                        Assessment based on the current
+                        project snapshot and available
+                        prototype indicators.
                     </div>
+
                 </div>
                 ''',
                 unsafe_allow_html=True
@@ -1046,36 +1206,43 @@ elif page == 'Project Intelligence':
 
         st.markdown(
             '''
-            <div class="official-note">
+            <div class="note">
                 <strong>Interpretation:</strong>
-                The attention score is a transparent prototype
-                screening measure, not a probability of project
-                failure. A trained and calibrated longitudinal
-                ML model would be required for predictive risk
-                probabilities.
+                The attention score is a transparent screening
+                measure for this prototype. It is not a probability
+                of project failure. A trained and calibrated
+                longitudinal ML model would be required for
+                predictive risk probabilities.
             </div>
             ''',
             unsafe_allow_html=True
         )
+
 
         # -------------------------------------------------
         # CONTRIBUTING INDICATORS
         # -------------------------------------------------
 
         st.markdown(
-            '<div class="section-heading">'
-            'Contributing Monitoring Indicators'
-            '</div>',
+            '''
+            <div class="section-title">
+                <div class="section-mark"></div>
+                Contributing Monitoring Indicators
+            </div>
+            ''',
             unsafe_allow_html=True
         )
 
         cost_contribution = min(
             max(
                 (
-                    float(p.cost_escalation_pct) /
-                    100
+                    float(
+                        p.cost_escalation_pct
+                    ) / 100
                 ) * 40
-                if pd.notna(p.cost_escalation_pct)
+                if pd.notna(
+                    p.cost_escalation_pct
+                )
                 else 0,
                 0
             ),
@@ -1085,10 +1252,13 @@ elif page == 'Project Intelligence':
         schedule_contribution = min(
             max(
                 (
-                    float(p.schedule_delay_months) /
-                    60
+                    float(
+                        p.schedule_delay_months
+                    ) / 60
                 ) * 35
-                if pd.notna(p.schedule_delay_months)
+                if pd.notna(
+                    p.schedule_delay_months
+                )
                 else 0,
                 0
             ),
@@ -1098,10 +1268,13 @@ elif page == 'Project Intelligence':
         gap_contribution = min(
             max(
                 (
-                    float(p.progress_gap_pct) /
-                    50
+                    float(
+                        p.progress_gap_pct
+                    ) / 50
                 ) * 25
-                if pd.notna(p.progress_gap_pct)
+                if pd.notna(
+                    p.progress_gap_pct
+                )
                 else 0,
                 0
             ),
@@ -1114,6 +1287,7 @@ elif page == 'Project Intelligence':
                 'Schedule revision',
                 'Progress–expenditure divergence'
             ],
+
             'Attention Contribution': [
                 cost_contribution,
                 schedule_contribution,
@@ -1135,22 +1309,29 @@ elif page == 'Project Intelligence':
             hide_index=True
         )
 
+
         # -------------------------------------------------
-        # REASONS
+        # MONITORING OBSERVATIONS
         # -------------------------------------------------
 
         st.markdown(
-            '<div class="section-heading">'
-            'Monitoring Observations'
-            '</div>',
+            '''
+            <div class="section-title">
+                <div class="section-mark"></div>
+                Monitoring Observations
+            </div>
+            ''',
             unsafe_allow_html=True
         )
 
         reasons = []
 
         if (
-            pd.notna(p.cost_escalation_pct)
-            and p.cost_escalation_pct > 10
+            pd.notna(
+                p.cost_escalation_pct
+            )
+            and
+            p.cost_escalation_pct > 10
         ):
 
             reasons.append(
@@ -1160,8 +1341,11 @@ elif page == 'Project Intelligence':
             )
 
         if (
-            pd.notna(p.schedule_delay_months)
-            and p.schedule_delay_months > 3
+            pd.notna(
+                p.schedule_delay_months
+            )
+            and
+            p.schedule_delay_months > 3
         ):
 
             reasons.append(
@@ -1171,8 +1355,11 @@ elif page == 'Project Intelligence':
             )
 
         if (
-            pd.notna(p.progress_gap_pct)
-            and p.progress_gap_pct > 10
+            pd.notna(
+                p.progress_gap_pct
+            )
+            and
+            p.progress_gap_pct > 10
         ):
 
             reasons.append(
@@ -1180,7 +1367,8 @@ elif page == 'Project Intelligence':
                 f'({p.expenditure_share_pct:.1f}%) '
                 f'is ahead of physical progress '
                 f'({p.progress:.1f}%) by '
-                f'{p.progress_gap_pct:.1f} percentage points.'
+                f'{p.progress_gap_pct:.1f} '
+                f'percentage points.'
             )
 
         if not reasons:
@@ -1190,59 +1378,88 @@ elif page == 'Project Intelligence':
                 'by the current prototype rules.'
             )
 
-        for r in reasons:
+        for reason in reasons:
+
             st.write(
-                '• ' + r
+                '• ' + reason
             )
 
         st.caption(
-            'These indicators describe the basis of the prototype '
-            'attention assessment. They are not causal findings.'
+            'These indicators describe the basis of the '
+            'prototype attention assessment. They are not '
+            'causal findings.'
         )
 
+
         # -------------------------------------------------
-        # PROJECT FACTS
+        # PROJECT INFORMATION
         # -------------------------------------------------
 
         st.markdown(
-            '<div class="section-heading">'
-            'Project Information'
-            '</div>',
+            '''
+            <div class="section-title">
+                <div class="section-mark"></div>
+                Project Information
+            </div>
+            ''',
             unsafe_allow_html=True
         )
 
         facts = pd.DataFrame({
+
             'Parameter': [
+
                 'Original approved cost',
                 'Latest revised cost',
                 'Cumulative expenditure',
                 'Original commissioning date',
                 'Revised commissioning date',
                 'Implementing agency'
+
             ],
 
             'Value': [
-                fmt_currency(p.original_cost),
-                fmt_currency(p.revised_cost),
-                fmt_currency(p.expenditure),
+
+                fmt_currency(
+                    p.original_cost
+                ),
+
+                fmt_currency(
+                    p.revised_cost
+                ),
+
+                fmt_currency(
+                    p.expenditure
+                ),
 
                 (
-                    p.original_date.strftime('%d %b %Y')
-                    if pd.notna(p.original_date)
+                    p.original_date.strftime(
+                        '%d %b %Y'
+                    )
+                    if pd.notna(
+                        p.original_date
+                    )
                     else 'Not available'
                 ),
 
                 (
-                    p.revised_date.strftime('%d %b %Y')
-                    if pd.notna(p.revised_date)
+                    p.revised_date.strftime(
+                        '%d %b %Y'
+                    )
+                    if pd.notna(
+                        p.revised_date
+                    )
                     else 'Not available'
                 ),
 
                 (
                     p.agency
-                    if pd.notna(p.agency)
+                    if pd.notna(
+                        p.agency
+                    )
                     else 'Not available'
                 )
+
             ]
         })
 
@@ -1260,19 +1477,22 @@ elif page == 'Project Intelligence':
 elif page == 'Historical Memory':
 
     st.markdown(
-        '<div class="section-heading">'
-        'Historical Institutional Memory'
-        '</div>',
+        '''
+        <div class="section-title">
+            <div class="section-mark"></div>
+            Historical Institutional Memory
+        </div>
+        ''',
         unsafe_allow_html=True
     )
 
     st.markdown(
         '''
-        <div class="official-note">
-            The prototype analogue engine identifies projects with
-            similar sector, physical progress, cost scale and
-            expenditure characteristics. Similarity is contextual
-            and does not imply identical project outcomes.
+        <div class="note">
+            The prototype analogue engine identifies projects
+            with similar sector, physical progress, cost scale
+            and expenditure characteristics. Similarity is
+            contextual and does not imply identical outcomes.
         </div>
         ''',
         unsafe_allow_html=True
@@ -1313,6 +1533,7 @@ elif page == 'Historical Memory':
         ].copy()
 
         if len(sector_projects) >= 5:
+
             cand = sector_projects
 
         features = [
@@ -1392,7 +1613,8 @@ elif page == 'Historical Memory':
                 candidate_values -
                 target_values
             )
-            / mad_values
+            /
+            mad_values
         )
 
         z = np.nan_to_num(
@@ -1460,7 +1682,7 @@ elif page == 'Historical Memory':
         ]
 
         st.markdown(
-            '### Comparable Projects'
+            '#### Comparable Projects'
         )
 
         st.dataframe(
@@ -1477,9 +1699,12 @@ elif page == 'Historical Memory':
 elif page == 'Methodology':
 
     st.markdown(
-        '<div class="section-heading">'
-        'Methodology & System Limitations'
-        '</div>',
+        '''
+        <div class="section-title">
+            <div class="section-mark"></div>
+            Methodology & System Limitations
+        </div>
+        ''',
         unsafe_allow_html=True
     )
 
@@ -1556,10 +1781,19 @@ training, validation and testing.
 st.markdown(
     '''
     <div class="footer">
+
         PRAGATI Prototype · Infrastructure Project Monitoring
-        Decision-Support Concept<br>
+        Decision-Support Concept
+
+        <br>
+
         Demonstration system using the supplied PAIMANA
-        project-level report · Not an official Government of India application
+        project-level report
+
+        <br>
+
+        Not an official Government of India application
+
     </div>
     ''',
     unsafe_allow_html=True
