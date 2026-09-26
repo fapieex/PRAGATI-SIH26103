@@ -6,53 +6,13 @@ from datetime import datetime
 
 st.set_page_config(
     page_title='PRAGATI | Infrastructure Intelligence',
-    page_icon='🇮🇳',
+    page_icon='📊',
     layout='wide'
 )
 
 DATA_FILE = Path(__file__).parent / 'Projects_Report.xlsx'
 
-# ---------------------------------------------------------
-# Theme
-# ---------------------------------------------------------
 
-if 'theme' not in st.session_state:
-    st.session_state.theme = 'Dark'
-
-theme = st.sidebar.selectbox(
-    'Display theme',
-    ['Dark', 'Light'],
-    index=0 if st.session_state.theme == 'Dark' else 1
-)
-
-st.session_state.theme = theme
-
-dark_mode = theme == 'Dark'
-
-if dark_mode:
-    BG = '#0b1118'
-    SURFACE = '#111a24'
-    SURFACE_2 = '#17232d'
-    TEXT = '#edf2f7'
-    MUTED = '#a9b6c3'
-    BORDER = '#2d3b48'
-    NAVY = '#79aee0'
-    NAVY_DARK = '#102b44'
-    SIDEBAR = '#0d151d'
-    INPUT_BG = '#17232d'
-    TABLE_BG = '#111a24'
-else:
-    BG = '#f4f6f8'
-    SURFACE = '#ffffff'
-    SURFACE_2 = '#f7f9fb'
-    TEXT = '#17202a'
-    MUTED = '#657385'
-    BORDER = '#dfe4ea'
-    NAVY = '#17395f'
-    NAVY_DARK = '#17395f'
-    SIDEBAR = '#eef1f5'
-    INPUT_BG = '#ffffff'
-    TABLE_BG = '#ffffff'
 @st.cache_data
 def load_data():
     df = pd.read_excel(DATA_FILE, skiprows=2)
@@ -257,224 +217,61 @@ df = add_risk_score(df)
 # ---------------------------------------------------------
 
 st.markdown(
-    f'''
+    '''
     <style>
-
-    /* =====================================================
-       GLOBAL
-    ===================================================== */
-
-    .stApp {{
-        background-color: {BG};
-        color: {TEXT};
-    }}
-
-    .main {{
-        background-color: {BG};
-    }}
-
-    .block-container {{
-        padding-top: 1.5rem;
-        padding-bottom: 2rem;
-    }}
-
-    h1, h2, h3, h4, h5, h6 {{
-        color: {TEXT} !important;
-    }}
-
-    p, span, label {{
-        color: {TEXT};
-    }}
-
-
-    /* =====================================================
-       TITLE
-    ===================================================== */
-
-    .main-title {{
+    .main-title {
         font-size: 2.15rem;
         font-weight: 800;
         margin-bottom: 0.1rem;
-        color: {NAVY};
-    }}
+    }
 
-    .sub-title {{
+    .sub-title {
         font-size: 1.02rem;
-        color: {MUTED};
+        color: #536273;
         margin-bottom: 1.2rem;
-    }}
+    }
 
-
-    /* =====================================================
-       TRICOLOUR ACCENT
-    ===================================================== */
-
-    .tricolor-bar {{
-        height: 5px;
-        width: 100%;
-        margin-bottom: 1rem;
-
-        background: linear-gradient(
-            to right,
-            #ff9933 0%,
-            #ff9933 33.33%,
-            #ffffff 33.33%,
-            #ffffff 66.66%,
-            #138808 66.66%,
-            #138808 100%
-        );
-
-        border-radius: 3px;
-    }}
-
-
-    /* =====================================================
-       CARDS
-    ===================================================== */
-
-    .card {{
+    .card {
         padding: 1rem 1.1rem;
-        border: 1px solid {BORDER};
-        border-radius: 10px;
-        background: {SURFACE};
-    }}
+        border: 1px solid #e4e8ee;
+        border-radius: 14px;
+        background: white;
+    }
 
-    .small {{
+    .small {
         font-size: .82rem;
-        color: {MUTED};
-    }}
+        color: #657385;
+    }
 
-    .attention-card {{
+    .attention-card {
         padding: 1rem 1.2rem;
-        border: 1px solid {BORDER};
-        border-radius: 10px;
-        background: {SURFACE};
+        border: 1px solid #e4e8ee;
+        border-radius: 14px;
+        background: white;
         min-height: 145px;
-    }}
+    }
 
-    .attention-label {{
+    .attention-label {
         font-size: .76rem;
         font-weight: 700;
-        color: {MUTED};
+        color: #687585;
         letter-spacing: .06em;
         margin-bottom: .45rem;
-    }}
+    }
 
-    .attention-badge {{
+    .attention-badge {
         display: inline-block;
         padding: .35rem .75rem;
         border-radius: 999px;
         font-weight: 800;
         font-size: .9rem;
         margin-bottom: .5rem;
-    }}
+    }
 
-    .attention-description {{
+    .attention-description {
         font-size: .82rem;
-        color: {MUTED};
-    }}
-
-
-    /* =====================================================
-       STREAMLIT METRICS
-    ===================================================== */
-
-    div[data-testid="stMetric"] {{
-        background: {SURFACE};
-        border: 1px solid {BORDER};
-        border-radius: 10px;
-        padding: .8rem 1rem;
-    }}
-
-    div[data-testid="stMetricLabel"] {{
-        color: {MUTED} !important;
-    }}
-
-    div[data-testid="stMetricValue"] {{
-        color: {NAVY} !important;
-    }}
-
-
-    /* =====================================================
-       SIDEBAR
-    ===================================================== */
-
-    section[data-testid="stSidebar"] {{
-        background-color: {SIDEBAR};
-        border-right: 1px solid {BORDER};
-    }}
-
-    section[data-testid="stSidebar"] h1,
-    section[data-testid="stSidebar"] h2,
-    section[data-testid="stSidebar"] h3 {{
-        color: {TEXT} !important;
-    }}
-
-    section[data-testid="stSidebar"] label {{
-        color: {TEXT} !important;
-    }}
-
-
-    /* =====================================================
-       INPUTS
-    ===================================================== */
-
-    div[data-baseweb="select"] > div {{
-        background-color: {INPUT_BG};
-        border-color: {BORDER};
-        color: {TEXT};
-    }}
-
-    div[data-baseweb="select"] span {{
-        color: {TEXT} !important;
-    }}
-
-    input {{
-        color: {TEXT} !important;
-    }}
-
-
-    /* =====================================================
-       RADIO NAVIGATION
-    ===================================================== */
-
-    div[role="radiogroup"] {{
-        gap: 0.35rem;
-    }}
-
-    div[role="radiogroup"] label {{
-        color: {TEXT} !important;
-    }}
-
-
-    /* =====================================================
-       DATAFRAMES
-    ===================================================== */
-
-    div[data-testid="stDataFrame"] {{
-        border: 1px solid {BORDER};
-        border-radius: 8px;
-        overflow: hidden;
-    }}
-
-
-    /* =====================================================
-       ALERT / INFO BOX
-    ===================================================== */
-
-    div[data-testid="stAlert"] {{
-        border-radius: 8px;
-    }}
-
-
-    /* =====================================================
-       DIVIDERS
-    ===================================================== */
-
-    hr {{
-        border-color: {BORDER} !important;
-    }}
-
+        color: #657385;
+    }
     </style>
     ''',
     unsafe_allow_html=True
@@ -487,11 +284,6 @@ st.markdown(
 
 st.markdown(
     '<div class="main-title">PRAGATI</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    '<div class="tricolor-bar"></div>',
     unsafe_allow_html=True
 )
 
