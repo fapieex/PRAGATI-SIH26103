@@ -1254,7 +1254,7 @@ This snapshot alone cannot establish future-overrun prediction accuracy. Longitu
 st.divider()
 
 st.caption(
-    'PRAGATI prototype · Built using PAIMANA data from August 2026 '
+    'PRAGATI prototype · Built using PAIMANA data from August,july and june 2026 '
     'project report · For demonstration and decision-support '
     'concept validation'
 )
