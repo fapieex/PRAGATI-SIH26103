@@ -1,6 +1,6 @@
-# PRAGATI Prototype
+# PRAGATI Prototype — SIH26103
 
-A Streamlit proof-of-concept for SIH26103 using the supplied PAIMANA project-level report.
+A Streamlit prototype for an explainable infrastructure project monitoring intelligence layer.
 
 ## Run locally
 
@@ -9,18 +9,22 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-The app reads `Projects_Report.xlsx` from the same folder.
+Keep `app.py`, `Projects_Report.xlsx`, and the nine monthly report files in the same folder. The monthly report filenames are used directly by the app.
 
-## Important prototype boundary
+## Features
 
-The supplied public project report is a current snapshot, not a longitudinal history. Therefore this prototype uses a transparent **attention/risk screening proxy** based on cost escalation, schedule revision, and expenditure–progress divergence. It does **not** claim trained future-outcome prediction or accuracy.
+- Overview of the current project-level snapshot
+- Project Intelligence with a transparent attention screening score and indicator explanations
+- Historical Memory for contextual project comparisons
+- Risk Analyst with June–August 2026 portfolio-level cost, expenditure, sector, state/UT and physical-progress trends
+- Methodology page explaining assumptions and limitations
 
-With multiple monthly PAIMANA/CUF snapshots, the same interface can be extended to train and evaluate longitudinal cost/schedule risk models using time-based splits.
+## Data and interpretation boundary
 
-## Suggested demo flow
+The project-level workbook is a single snapshot. Its attention score is a transparent screening proxy, **not** a trained prediction or probability of failure. The June–August reports are aggregate reports; they support portfolio-level trend analysis but do not provide monthly histories for individual projects. The app therefore does not claim individual-project trajectory prediction or validated forecast accuracy.
 
-1. Open Overview.
-2. Pick a project in Project Intelligence.
-3. Show the attention score and the evidence behind it.
-4. Open Historical Memory and show comparable projects.
-5. Open Methodology if asked how the prototype avoids overclaiming.
+## Monthly report mapping
+
+- June: `Cost-Wise-Report (6).xlsx` (portfolio totals), `Cost-Wise-Report (7).xlsx` (state/UT), `Sector-Wise-Report (3).xlsx`, `Physical-Progress-Report (3).xlsx`
+- July: `Cost-Wise-Report (4).xlsx` (portfolio totals), `Cost-Wise-Report (5).xlsx` (state/UT), `Sector-Wise-Report (2).xlsx`, `Physical-Progress-Report (2).xlsx`
+- August: `Cost-Wise-Report (2).xlsx` (portfolio totals), `Cost-Wise-Report (3).xlsx` (state/UT), `Sector-Wise-Report (1).xlsx`, `Physical-Progress-Report (1).xlsx`

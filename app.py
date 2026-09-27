@@ -213,6 +213,108 @@ df = add_risk_score(df)
 
 
 # ---------------------------------------------------------
+# Monthly portfolio reports (June–August 2026)
+# These are aggregate reports, not project-level histories.
+# ---------------------------------------------------------
+REPORT_FILES = {
+    'June': {
+        'cost': 'Cost-Wise-Report (6).xlsx',
+        'sector': 'Sector-Wise-Report (3).xlsx',
+        'progress': 'Physical-Progress-Report (3).xlsx',
+        'state': 'Cost-Wise-Report (7).xlsx',
+    },
+    'July': {
+        'cost': 'Cost-Wise-Report (4).xlsx',
+        'sector': 'Sector-Wise-Report (2).xlsx',
+        'progress': 'Physical-Progress-Report (2).xlsx',
+        'state': 'Cost-Wise-Report (5).xlsx',
+    },
+    'August': {
+        'cost': 'Cost-Wise-Report (2).xlsx',
+        'sector': 'Sector-Wise-Report (1).xlsx',
+        'progress': 'Physical-Progress-Report (1).xlsx',
+        'state': 'Cost-Wise-Report (3).xlsx',
+    },
+}
+
+
+def parse_report_number(value):
+    """Convert Indian-formatted currency strings or numbers to float."""
+    if pd.isna(value):
+        return np.nan
+    cleaned = str(value).replace('₹', '').replace(',', '').strip()
+    try:
+        return float(cleaned)
+    except (TypeError, ValueError):
+        return np.nan
+
+
+
+def load_monthly_reports():
+    rows = []
+    sector_frames = {}
+    progress_frames = {}
+    state_frames = {}
+    missing = []
+    for month, files in REPORT_FILES.items():
+        cost_path = Path(__file__).parent / files['cost']
+        sector_path = Path(__file__).parent / files['sector']
+        progress_path = Path(__file__).parent / files['progress']
+        state_path = Path(__file__).parent / files['state']
+        if not all(path.exists() for path in [cost_path, sector_path, progress_path, state_path]):
+            missing.append(month)
+            continue
+        cost_raw = pd.read_excel(cost_path, header=None)
+        vals = cost_raw.iloc[2].tolist()
+        rows.append({
+            'Month': month,
+            'Original Cost (₹ cr)': parse_report_number(vals[1]),
+            'Revised Cost (₹ cr)': parse_report_number(vals[2]),
+            'Expenditure (₹ cr)': parse_report_number(vals[3]),
+        })
+        sec = pd.read_excel(sector_path, skiprows=2, header=None)
+        sec = sec.iloc[:, :5].copy()
+        sec.columns = ['index', 'sector', 'project_count', 'cost_text', 'expenditure']
+        sec['project_count'] = pd.to_numeric(sec['project_count'], errors='coerce')
+        sec['expenditure'] = pd.to_numeric(sec['expenditure'], errors='coerce')
+        sec['sector'] = sec['sector'].astype(str).str.strip()
+        sec = sec[sec['sector'].notna() & (sec['sector'] != '') & (sec['sector'].str.lower() != 'nan')]
+        # Cost cell contains original cost followed by revised cost in parentheses.
+        sec['original_cost'] = sec['cost_text'].astype(str).str.extract(r'^\s*([\d,.]+)')[0].str.replace(',', '', regex=False)
+        sec['revised_cost'] = sec['cost_text'].astype(str).str.extract(r'\(([\d,.]+)\)')[0].str.replace(',', '', regex=False)
+        sec['original_cost'] = pd.to_numeric(sec['original_cost'], errors='coerce')
+        sec['revised_cost'] = pd.to_numeric(sec['revised_cost'], errors='coerce')
+        sector_frames[month] = sec
+        prog = pd.read_excel(progress_path, skiprows=2, header=None)
+        prog = prog.iloc[:, :5].copy()
+        prog.columns = ['index', 'progress_band', 'project_count', 'cost_text', 'expenditure']
+        prog['project_count'] = pd.to_numeric(prog['project_count'], errors='coerce')
+        prog['progress_band'] = prog['progress_band'].astype(str).str.strip()
+        prog = prog[prog['progress_band'].notna() & (prog['progress_band'] != '') & (prog['progress_band'].str.lower() != 'nan')]
+        progress_frames[month] = prog
+
+        # The second Cost-Wise report supplied for each month is the
+        # state-wise table (despite its filename).
+        state = pd.read_excel(state_path, skiprows=2, header=None)
+        state = state.iloc[:, :5].copy()
+        state.columns = ['index', 'state', 'project_count', 'cost_text', 'expenditure']
+        state['project_count'] = pd.to_numeric(state['project_count'], errors='coerce')
+        state['expenditure'] = pd.to_numeric(state['expenditure'], errors='coerce')
+        state['state'] = state['state'].astype(str).str.strip()
+        state = state[state['state'].notna() & (state['state'] != '') & (state['state'].str.lower() != 'nan')]
+        state['original_cost'] = state['cost_text'].astype(str).str.extract(r'^\s*([\d,.]+)')[0].str.replace(',', '', regex=False)
+        state['revised_cost'] = state['cost_text'].astype(str).str.extract(r'\(([\d,.]+)\)')[0].str.replace(',', '', regex=False)
+        state['original_cost'] = pd.to_numeric(state['original_cost'], errors='coerce')
+        state['revised_cost'] = pd.to_numeric(state['revised_cost'], errors='coerce')
+        state_frames[month] = state
+
+    return pd.DataFrame(rows), sector_frames, progress_frames, state_frames, missing
+
+
+monthly, monthly_sectors, monthly_progress, monthly_states, missing_months = load_monthly_reports()
+
+
+# ---------------------------------------------------------
 # Styling
 # ---------------------------------------------------------
 
@@ -296,10 +398,11 @@ st.markdown(
 )
 
 st.info(
-    'Prototype mode: this build uses the supplied PAIMANA project-level '
-    'snapshot. The attention score is a transparent screening proxy, not '
-    'a trained future-outcome prediction. Longitudinal prediction activates '
-    'when multiple reporting snapshots are available.'
+    'Prototype mode: project-level intelligence uses the supplied PAIMANA '
+    'snapshot, while Risk Analyst compares June–August portfolio aggregates. '
+    'The attention score is a transparent screening proxy, not a trained '
+    'future-outcome prediction. Aggregate monthly reports do not provide '
+    'individual project trajectories.'
 )
 
 
@@ -404,6 +507,7 @@ page = st.radio(
     'PRAGATI intelligence',
     [
         'Overview',
+        'Risk Analyst',
         'Project Intelligence',
         'Historical Memory',
         'Methodology'
@@ -484,6 +588,113 @@ if page == 'Overview':
             use_container_width=True,
             hide_index=True
         )
+
+
+# =========================================================
+# RISK ANALYST — AGGREGATE MONTHLY TRENDS
+# =========================================================
+
+elif page == 'Risk Analyst':
+
+    st.subheader('Portfolio Risk Analyst')
+    st.caption('June–August 2026 aggregate trend analysis from the supplied monthly PAIMANA reports.')
+
+    if len(monthly) != 3:
+        st.warning('One or more monthly reports are missing. Add the June, July and August report files beside app.py to enable this view.')
+    else:
+        ordered = monthly.set_index('Month').reindex(['June', 'July', 'August']).reset_index()
+        latest = ordered.iloc[-1]
+        previous = ordered.iloc[-2]
+
+        st.info('This analysis compares portfolio-level monthly aggregates. The project-level workbook is a single snapshot, so these trends are not individual-project trajectories or trained predictions.')
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric('August project count', f"{int(monthly_sectors['August']['project_count'].sum()):,}", help='Sum of sector-wise project counts in the August report.')
+        m2.metric('August revised cost', f"₹{latest['Revised Cost (₹ cr)']:,.0f} cr", f"{latest['Revised Cost (₹ cr)']-previous['Revised Cost (₹ cr)']:+,.0f} cr vs July")
+        m3.metric('August expenditure', f"₹{latest['Expenditure (₹ cr)']:,.0f} cr", f"{latest['Expenditure (₹ cr)']-previous['Expenditure (₹ cr)']:+,.0f} cr vs July")
+        m4.metric('August cost escalation', f"{(latest['Revised Cost (₹ cr)']/latest['Original Cost (₹ cr)']-1)*100:.1f}%", help='Revised cost compared with original approved cost in the monthly aggregate report.')
+
+        st.markdown('### Portfolio trend')
+        trend_metric = st.selectbox('Metric to compare', ['Original Cost (₹ cr)', 'Revised Cost (₹ cr)', 'Expenditure (₹ cr)'])
+        trend = ordered.set_index('Month')[[trend_metric]]
+        st.line_chart(trend, use_container_width=True)
+        st.dataframe(ordered.rename(columns={
+            'Original Cost (₹ cr)': 'Original cost (₹ cr)',
+            'Revised Cost (₹ cr)': 'Revised cost (₹ cr)',
+            'Expenditure (₹ cr)': 'Expenditure (₹ cr)'
+        }).round(2), use_container_width=True, hide_index=True)
+
+        st.markdown('### Sector movement')
+        all_sectors = sorted(set().union(*[set(x['sector'].dropna()) for x in monthly_sectors.values()]))
+        selected_sector = st.selectbox('Select sector', all_sectors)
+        sector_rows = []
+        for month in ['June', 'July', 'August']:
+            part = monthly_sectors[month]
+            match = part[part['sector'] == selected_sector]
+            if len(match):
+                r = match.iloc[0]
+                sector_rows.append({'Month': month, 'Projects': r['project_count'], 'Original cost (₹ cr)': r['original_cost'], 'Revised cost (₹ cr)': r['revised_cost'], 'Expenditure (₹ cr)': r['expenditure']})
+            else:
+                sector_rows.append({'Month': month, 'Projects': 0, 'Original cost (₹ cr)': np.nan, 'Revised cost (₹ cr)': np.nan, 'Expenditure (₹ cr)': np.nan})
+        sector_trend = pd.DataFrame(sector_rows).set_index('Month')
+        sc1, sc2 = st.columns(2)
+        with sc1:
+            st.caption('Project count by month')
+            st.bar_chart(sector_trend[['Projects']])
+        with sc2:
+            st.caption('Revised cost by month (₹ crore)')
+            st.line_chart(sector_trend[['Revised cost (₹ cr)']])
+        st.dataframe(sector_trend.reset_index().round(2), use_container_width=True, hide_index=True)
+
+        st.markdown('### State movement')
+        all_states = sorted(set().union(*[set(x['state'].dropna()) for x in monthly_states.values()]))
+        if all_states:
+            selected_state = st.selectbox('Select state / UT', all_states)
+            state_rows = []
+            for month in ['June', 'July', 'August']:
+                part = monthly_states[month]
+                match = part[part['state'] == selected_state]
+                if len(match):
+                    r = match.iloc[0]
+                    state_rows.append({
+                        'Month': month,
+                        'Projects': r['project_count'],
+                        'Original cost (₹ cr)': r['original_cost'],
+                        'Revised cost (₹ cr)': r['revised_cost'],
+                        'Expenditure (₹ cr)': r['expenditure']
+                    })
+                else:
+                    state_rows.append({
+                        'Month': month, 'Projects': 0,
+                        'Original cost (₹ cr)': np.nan,
+                        'Revised cost (₹ cr)': np.nan,
+                        'Expenditure (₹ cr)': np.nan
+                    })
+            state_trend = pd.DataFrame(state_rows).set_index('Month')
+            st.line_chart(state_trend[['Revised cost (₹ cr)']], use_container_width=True)
+            st.dataframe(state_trend.reset_index().round(2), use_container_width=True, hide_index=True)
+        else:
+            st.caption('No state-wise data is available in the supplied reports.')
+
+        st.markdown('### Physical-progress distribution')
+        bands = list(dict.fromkeys(monthly_progress['August']['progress_band'].tolist()))
+        progress_rows = []
+        for band in bands:
+            row = {'Progress band': band}
+            for month in ['June', 'July', 'August']:
+                part = monthly_progress[month]
+                match = part[part['progress_band'] == band]
+                row[month] = int(match['project_count'].iloc[0]) if len(match) and pd.notna(match['project_count'].iloc[0]) else 0
+            progress_rows.append(row)
+        progress_compare = pd.DataFrame(progress_rows).set_index('Progress band')
+        st.bar_chart(progress_compare[['June', 'July', 'August']], use_container_width=True)
+        st.dataframe(progress_compare.reset_index(), use_container_width=True, hide_index=True)
+
+        st.markdown('### Interpretation')
+        revised_change = latest['Revised Cost (₹ cr)'] - previous['Revised Cost (₹ cr)']
+        expenditure_change = latest['Expenditure (₹ cr)'] - previous['Expenditure (₹ cr)']
+        st.write(f"From July to August, reported revised cost changed by ₹{revised_change:,.0f} crore and cumulative expenditure changed by ₹{expenditure_change:,.0f} crore.")
+        st.caption('These are changes in reported portfolio totals. They can reflect project additions/removals, revisions, reporting updates or expenditure; they should not be interpreted as a causal explanation or a forecast.')
 
 
 # =========================================================
@@ -1017,6 +1228,10 @@ elif page == 'Methodology':
 **Current snapshot layer**
 
 PAIMANA project-level fields → validation → derived indicators → transparent attention score → explanation → historical analogues.
+
+**Monthly Risk Analyst**
+
+June, July and August aggregate reports → portfolio cost/expenditure trends, sector movement and physical-progress distribution. These aggregates do not create individual-project monthly histories.
 
 **Derived indicators**
 
